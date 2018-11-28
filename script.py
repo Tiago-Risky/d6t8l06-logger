@@ -3,6 +3,13 @@ import time
 import serial
 import datetime
 
+import os
+import random
+import ssl
+
+import jwt
+import paho.mqtt.client as mqtt
+
 # Settings for the user to change
 serialPort = 'COM3'
 frequency = 60 # Number of entry records per minute (at equal intervals)
@@ -83,6 +90,15 @@ class WindowThread(Thread):
                 F.write(stringPrint)
                 time.sleep(frc)
 
+class GCPThread(Thread):
+ 
+    def __init__(self, val):
+        Thread.__init__(self)
+        self.val = val
+        
+    def run(self):
+        GCloudIOT().main()
+
 
 
 if __name__ == '__main__':
@@ -91,10 +107,228 @@ if __name__ == '__main__':
  
     thread2 = WindowThread(2)
     thread2.setName('Thread 2')
+
+    thread3 = GCPThread(2)
+    thread3.setName('Thread 3')
+
     thread1.start()
     thread2.start()
+    thread3.start()
  
     thread1.join()
     thread2.join()
+    thread3.join()
  
     print('Main Terminating...')
+
+
+class GCloudIOT():
+        # The initial backoff time after a disconnection occurs, in seconds.
+        minimum_backoff_time = 1
+
+        # The maximum backoff time before giving up, in seconds.
+        MAXIMUM_BACKOFF_TIME = 32
+
+        # Whether to wait with exponential backoff before publishing.
+        should_backoff = False
+
+        # Args
+        arg_project_id = 'iot-test-0001' #GCP Cloud Project ID
+        arg_registry_id = 'test-iot' #Cloud IoT Core registry NAME
+        arg_device_id = 'device-python' #Cloud IoT Core device NAME
+        arg_private_key_file = 'C:\\Users\\Tiago Cabral\\Desktop\\mqtt_python_test\\rsa_private.pem' #Path to private key file
+        arg_algorithm = 'RS256' #Encryption to generate JWT, RS256 or ES256 available
+        arg_cloud_region = 'europe-west1' #GCP Cloud Region
+        arg_ca_certs = 'C:\\Users\\Tiago Cabral\\Desktop\\mqtt_python_test\\roots.pem' #Path to CA root obtained from https://pki.google.com/roots.pem
+        arg_message_type = 'event' #Event (telemetry) or State(device state)
+        arg_mqtt_bridge_hostname = 'mqtt.googleapis.com' #MQTT bridge hostname
+        arg_mqtt_bridge_port = 8883 #MQTT bridge port, 8883 or 443 recommended
+        arg_jwt_expires_minutes = 20 #Expiration time, in minutes, for JWT tokens
+
+
+
+        # [START iot_mqtt_jwt]
+        def create_jwt(self, project_id, private_key_file, algorithm):
+
+                token = {
+                        # The time that the token was issued at
+                        'iat': datetime.datetime.utcnow(),
+                        # The time the token expires.
+                        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60),
+                        # The audience field should always be set to the GCP project id.
+                        'aud': project_id
+                }
+
+                # Read the private key file.
+                with open(private_key_file, 'r') as f:
+                        private_key = f.read()
+
+                print('Creating JWT using {} from private key file {}'.format(
+                algorithm, private_key_file))
+
+                return jwt.encode(token, private_key, algorithm=algorithm)
+        # [END iot_mqtt_jwt]
+
+
+        # [START iot_mqtt_config]
+        def error_str(self, rc):
+                """Convert a Paho error to a human readable string."""
+                return '{}: {}'.format(rc, mqtt.error_string(rc))
+
+
+        def on_connect(self, unused_client, unused_userdata, unused_flags, rc):
+                """Callback for when a device connects."""
+                print('on_connect', mqtt.connack_string(rc))
+
+        # After a successful connect, reset backoff time and stop backing off.
+                should_backoff = self.should_backoff
+                minimum_backoff_time = self.minimum_backoff_time
+                should_backoff = False
+                minimum_backoff_time = 1
+
+
+        def on_disconnect(self, unused_client, unused_userdata, rc):
+                """Paho callback for when a device disconnects."""
+                print('on_disconnect', self.error_str(rc))
+
+                # Since a disconnect occurred, the next loop iteration will wait with
+                # exponential backoff.
+                should_backoff = self.should_backoff
+                should_backoff = True
+
+
+        def on_publish(self, unused_client, unused_userdata, unused_mid):
+                """Paho callback when a message is sent to the broker."""
+                print('on_publish')
+
+
+        def on_message(self, unused_client, unused_userdata, message):
+                """Callback when the device receives a message on a subscription."""
+                payload = str(message.payload)
+                print('Received message \'{}\' on topic \'{}\' with Qos {}'.format(
+                payload, message.topic, str(message.qos)))
+
+
+        def get_client(self,
+                project_id, cloud_region, registry_id, device_id, private_key_file,
+                algorithm, ca_certs, mqtt_bridge_hostname, mqtt_bridge_port):
+                """Create our MQTT client. The client_id is a unique string that identifies
+                this device. For Google Cloud IoT Core, it must be in the format below."""
+                client = mqtt.Client(
+                        client_id=('projects/{}/locations/{}/registries/{}/devices/{}'
+                                .format(
+                                project_id,
+                                cloud_region,
+                                registry_id,
+                                device_id)))
+
+                # With Google Cloud IoT Core, the username field is ignored, and the
+                # password field is used to transmit a JWT to authorize the device.
+                client.username_pw_set(
+                        username='unused',
+                        password=self.create_jwt(
+                        project_id, private_key_file, algorithm))
+
+                # Enable SSL/TLS support.
+                client.tls_set(ca_certs=ca_certs, tls_version=ssl.PROTOCOL_TLSv1_2)
+
+                # Register message callbacks. https://eclipse.org/paho/clients/python/docs/
+                # describes additional callbacks that Paho supports. In this example, the
+                # callbacks just print to standard out.
+                client.on_connect = self.on_connect
+                client.on_publish = self.on_publish
+                client.on_disconnect = self.on_disconnect
+                client.on_message = self.on_message
+
+                # Connect to the Google MQTT bridge.
+                client.connect(mqtt_bridge_hostname, mqtt_bridge_port)
+
+                # This is the topic that the device will receive configuration updates on.
+                mqtt_config_topic = '/devices/{}/config'.format(device_id)
+
+                # Subscribe to the config topic.
+                client.subscribe(mqtt_config_topic, qos=1)
+
+                return client
+        # [END iot_mqtt_config]
+
+
+        # [START iot_mqtt_run]
+        def main(self):
+
+                minimum_backoff_time = self.minimum_backoff_time
+                arg_project_id = self.arg_project_id #GCP Cloud Project ID
+                arg_registry_id = self.arg_registry_id #Cloud IoT Core registry NAME
+                arg_device_id = self.arg_device_id #Cloud IoT Core device NAME
+                arg_private_key_file = self.arg_private_key_file #Path to private key file
+                arg_algorithm = self.arg_algorithm #Encryption to generate JWT, RS256 or ES256 available
+                arg_cloud_region = self.arg_cloud_region #GCP Cloud Region
+                arg_ca_certs = self.arg_ca_certs #Path to CA root obtained from https://pki.google.com/roots.pem
+                arg_message_type = self.arg_message_type #Event (telemetry) or State(device state)
+                arg_mqtt_bridge_hostname = self.arg_mqtt_bridge_hostname #MQTT bridge hostname
+                arg_mqtt_bridge_port = self.arg_mqtt_bridge_port #MQTT bridge port, 8883 or 443 recommended
+                arg_jwt_expires_minutes = self.arg_jwt_expires_minutes #Expiration time, in minutes, for JWT tokens
+
+                #args = parse_command_line_args()
+
+                # Publish to the events or state topic based on the flag.
+                sub_topic = 'events' if arg_message_type == 'event' else 'state'
+
+                mqtt_topic = '/devices/{}/{}'.format(arg_device_id, sub_topic)
+
+                jwt_iat = datetime.datetime.utcnow()
+                jwt_exp_mins = arg_jwt_expires_minutes
+                client = self.get_client(
+                        arg_project_id, arg_cloud_region, arg_registry_id, arg_device_id,
+                        arg_private_key_file, arg_algorithm, arg_ca_certs,
+                        arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
+
+                # Publish num_messages mesages to the MQTT bridge once per second.
+                while(True):
+                        # Process network events.
+                        client.loop()
+
+                        # Wait if backoff is required.
+                        if self.should_backoff:
+                        # If backoff time is too large, give up.
+                                if minimum_backoff_time > self.MAXIMUM_BACKOFF_TIME:
+                                        print('Exceeded maximum backoff time. Giving up.')
+                                        break
+
+                        # Otherwise, wait and connect again.
+                                delay = minimum_backoff_time + random.randint(0, 1000) / 1000.0
+                                print('Waiting for {} before reconnecting.'.format(delay))
+                                time.sleep(delay)
+                                minimum_backoff_time *= 2
+                                client.connect(arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
+
+                        # TODO this is an example payload, we're meant to build this payload now using the global array
+                        # that contains all the data from the sensor
+                        # coming soon(tm)
+                        payload = '{"temperature":"21","value":"3"};{"temperature":"23","value":"5"}'
+                        print('Publishing message: \'{}\''.format(payload))
+                        # [START iot_mqtt_jwt_refresh]
+                        seconds_since_issue = (datetime.datetime.utcnow() - jwt_iat).seconds
+                        if seconds_since_issue > 60 * jwt_exp_mins:
+                                print('Refreshing token after {}s').format(seconds_since_issue)
+                                jwt_iat = datetime.datetime.utcnow()
+                                client = self.get_client(
+                                        arg_project_id, arg_cloud_region,
+                                        arg_registry_id, arg_device_id, arg_private_key_file,
+                                        arg_algorithm, arg_ca_certs, arg_mqtt_bridge_hostname,
+                                        arg_mqtt_bridge_port)
+                        # [END iot_mqtt_jwt_refresh]
+                        # Publish "payload" to the MQTT topic. qos=1 means at least once
+                        # delivery. Cloud IoT Core also supports qos=0 for at most once
+                        # delivery.
+                        client.publish(mqtt_topic, payload, qos=1)
+
+                        # Send events every second. State should not be updated as often
+                        #time.sleep(1 if arg_message_type == 'event' else 5)
+                        
+                        # We're experimenting with 5 second intervals always, to save on queries.
+                        # Later we might increase this
+                        time.sleep(5)
+
+                print('Finished.')
+        # [END iot_mqtt_run]
