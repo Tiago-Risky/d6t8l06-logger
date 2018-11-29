@@ -12,7 +12,8 @@ import paho.mqtt.client as mqtt
 
 # Settings for the user to change
 serialPort = 'COM3'
-frequency = 60 # Number of entry records per minute (at equal intervals)
+frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
+frequencyMQTT = 12 # Number of MQTT telemetry reports per minute (at equal intervals)
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped 
 # Make sure the script has permissions to write in the folder!
 
@@ -23,103 +24,14 @@ filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, pro
 
 # End of Settings
 
-frc = 1/(frequency / 60)
+frc = 1/(frequencyLogfile / 60)
+frcMQTT = 1/(frequencyMQTT / 60)
+buffer = True if (frc != frcMQTT) else False
 vals = [] * 8
+bufferList = []
 valPTAT = 0
-debug = True
+debug = False
 
-class SerialThread(Thread):
- 
-    def __init__(self, val):
-        Thread.__init__(self)
-        self.val = val
-        
-    def run(self):
-        while True:
-            print("Attempting to connect")
-            try:
-                global serialPort
-                conn = serial.Serial(serialPort, 9600)
-                break
-            except serial.SerialException as e:
-                print("Fail to connect: {}".format(e))
-                time.sleep(3)
-        time.sleep(2)
-
-        print("Listening")
-
-        global vals
-
-        while True:
-            if not vals:
-                vals = [0]*8
-            else:
-                global valPTAT
-                ler = conn.readline().decode()
-                ler = ler.strip()
-                temp = ler.split(",")
-                for i in range(8):
-                    vals[i] = temp[i]
-
-                valPTAT = temp[8]
-
-                if debug:
-                    print("Values: {}".format(vals))
-                    print("PTAT Value: {}".format(valPTAT))
-
-
-
-class WindowThread(Thread):
- 
-    def __init__(self, val):
-        Thread.__init__(self)
-        self.val = val
-        
-    def run(self):
-        while(True):
-            if vals:
-                ts = time.time()
-                st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
-                print(st)
-                F = open(filePath, 'a')
-                stringPrint = st + ','
-                for x in vals:
-                    stringPrint = stringPrint + x + ','
-                stringPrint = stringPrint + valPTAT + '\n'
-
-                F.write(stringPrint)
-                time.sleep(frc)
-
-class GCPThread(Thread):
- 
-    def __init__(self, val):
-        Thread.__init__(self)
-        self.val = val
-        
-    def run(self):
-        GCloudIOT().main()
-
-
-
-if __name__ == '__main__':
-    thread1 = SerialThread(1)
-    thread1.setName('Thread 1')
- 
-    thread2 = WindowThread(2)
-    thread2.setName('Thread 2')
-
-    thread3 = GCPThread(2)
-    thread3.setName('Thread 3')
-
-    thread1.start()
-    thread2.start()
-    thread3.start()
- 
-    thread1.join()
-    thread2.join()
-    thread3.join()
- 
-    print('Main Terminating...')
 
 
 class GCloudIOT():
@@ -132,7 +44,7 @@ class GCloudIOT():
         # Whether to wait with exponential backoff before publishing.
         should_backoff = False
 
-        # Args
+        # Configuration
         arg_project_id = 'iot-test-0001' #GCP Cloud Project ID
         arg_registry_id = 'test-iot' #Cloud IoT Core registry NAME
         arg_device_id = 'device-python' #Cloud IoT Core device NAME
@@ -269,7 +181,7 @@ class GCloudIOT():
                 arg_mqtt_bridge_port = self.arg_mqtt_bridge_port #MQTT bridge port, 8883 or 443 recommended
                 arg_jwt_expires_minutes = self.arg_jwt_expires_minutes #Expiration time, in minutes, for JWT tokens
 
-                #args = parse_command_line_args()
+                global frcMQTT
 
                 # Publish to the events or state topic based on the flag.
                 sub_topic = 'events' if arg_message_type == 'event' else 'state'
@@ -283,7 +195,7 @@ class GCloudIOT():
                         arg_private_key_file, arg_algorithm, arg_ca_certs,
                         arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
 
-                # Publish num_messages mesages to the MQTT bridge once per second.
+                # Publish mesages to the MQTT bridge.
                 while(True):
                         # Process network events.
                         client.loop()
@@ -302,33 +214,145 @@ class GCloudIOT():
                                 minimum_backoff_time *= 2
                                 client.connect(arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
 
-                        # TODO this is an example payload, we're meant to build this payload now using the global array
-                        # that contains all the data from the sensor
-                        # coming soon(tm)
-                        payload = '{"temperature":"21","value":"3"};{"temperature":"23","value":"5"}'
-                        print('Publishing message: \'{}\''.format(payload))
-                        # [START iot_mqtt_jwt_refresh]
-                        seconds_since_issue = (datetime.datetime.utcnow() - jwt_iat).seconds
-                        if seconds_since_issue > 60 * jwt_exp_mins:
-                                print('Refreshing token after {}s').format(seconds_since_issue)
-                                jwt_iat = datetime.datetime.utcnow()
-                                client = self.get_client(
-                                        arg_project_id, arg_cloud_region,
-                                        arg_registry_id, arg_device_id, arg_private_key_file,
-                                        arg_algorithm, arg_ca_certs, arg_mqtt_bridge_hostname,
-                                        arg_mqtt_bridge_port)
-                        # [END iot_mqtt_jwt_refresh]
-                        # Publish "payload" to the MQTT topic. qos=1 means at least once
-                        # delivery. Cloud IoT Core also supports qos=0 for at most once
-                        # delivery.
-                        client.publish(mqtt_topic, payload, qos=1)
+                        #Testing the buffer
+                        if (len(bufferList)>=(frcMQTT-1)):
+                                
+                                payload = ''
+                                for x in range(len(bufferList)):
+                                        row = '{'
+                                        for y in range(8):
+                                                row = row + '"sensor'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
+                                        row = row + '"time":"' + str(bufferList[x][8]) + '"}'
+                                        if (x<len(bufferList)-1):
+                                                row = row + ';'
+                                        payload = payload + row
+                                
+                                print('Publishing message: \'{}\''.format(payload))
+                                # [START iot_mqtt_jwt_refresh]
+                                seconds_since_issue = (datetime.datetime.utcnow() - jwt_iat).seconds
+                                if seconds_since_issue > 60 * jwt_exp_mins:
+                                        print('Refreshing token after {}s').format(seconds_since_issue)
+                                        jwt_iat = datetime.datetime.utcnow()
+                                        client = self.get_client(
+                                                arg_project_id, arg_cloud_region,
+                                                arg_registry_id, arg_device_id, arg_private_key_file,
+                                                arg_algorithm, arg_ca_certs, arg_mqtt_bridge_hostname,
+                                                arg_mqtt_bridge_port)
+                                # [END iot_mqtt_jwt_refresh]
+                                # Publish "payload" to the MQTT topic. qos=1 means at least once
+                                # delivery. Cloud IoT Core also supports qos=0 for at most once
+                                # delivery.
+                                client.publish(mqtt_topic, payload, qos=1)
+                                bufferList.clear() # This is not supported on older Python versions, only 3.3+
+                        else:
+                                #This is in case it's out of sync, we wait 1 second so it possibly fixes the issue
+                                time.sleep(1)
+                                continue
 
                         # Send events every second. State should not be updated as often
                         #time.sleep(1 if arg_message_type == 'event' else 5)
                         
-                        # We're experimenting with 5 second intervals always, to save on queries.
-                        # Later we might increase this
-                        time.sleep(5)
+                        # We're experimenting with 5 second intervals always (12 publishes per min), to save on queries.
+                        # Later we might adjust this
+                        time.sleep(frcMQTT)
 
                 print('Finished.')
         # [END iot_mqtt_run]
+
+
+class SerialThread(Thread):
+ 
+    def __init__(self):
+        Thread.__init__(self)
+        
+    def run(self):
+        while True:
+            print("Attempting to connect")
+            try:
+                global serialPort
+                conn = serial.Serial(serialPort, 9600)
+                break
+            except serial.SerialException as e:
+                print("Fail to connect: {}".format(e))
+                time.sleep(3)
+        time.sleep(2)
+
+        print("Listening")
+
+        global vals
+
+        while True:
+            if not vals:
+                vals = [0]*8
+            else:
+                global valPTAT
+                ler = conn.readline().decode()
+                ler = ler.strip()
+                temp = ler.split(",")
+                for i in range(8):
+                        vals[i] = temp[i]
+                
+                valPTAT = temp[8]
+
+                if debug:
+                    print("Values: {}".format(vals))
+                    print("PTAT Value: {}".format(valPTAT))
+
+
+
+class WindowThread(Thread):
+ 
+    def __init__(self):
+        Thread.__init__(self)
+        
+    def run(self):
+        while(True):
+            if vals:
+                ts = time.time()
+                st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
+                print(st)
+                F = open(filePath, 'a')
+                stringPrint = st + ','
+                global buffer
+                if buffer:
+                        bufferVal = []
+                        bufferVal.extend(vals)
+                        bufferVal.append(st)
+                        bufferList.append(bufferVal)
+                for x in vals:
+                    stringPrint = stringPrint + str(x) + ','
+                stringPrint = stringPrint + str(valPTAT) + '\n'
+
+                F.write(stringPrint)
+                time.sleep(frc)
+
+class GCPThread(Thread):
+ 
+    def __init__(self):
+        Thread.__init__(self)
+        
+    def run(self):
+        GCloudIOT().main()
+
+
+
+if __name__ == '__main__':
+        thread1 = SerialThread()
+        thread1.setName('Thread 1')
+        
+        thread2 = WindowThread()
+        thread2.setName('Thread 2')
+
+        thread3 = GCPThread()
+        thread3.setName('Thread 3')
+
+        thread1.start()
+        thread2.start()
+        thread3.start()
+        
+        thread1.join()
+        thread2.join()
+        thread3.join()
+        
+        print('Main Terminating...')
+
