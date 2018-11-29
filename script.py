@@ -98,10 +98,8 @@ class GCloudIOT():
                 print('on_connect', mqtt.connack_string(rc))
 
         # After a successful connect, reset backoff time and stop backing off.
-                should_backoff = self.should_backoff
-                minimum_backoff_time = self.minimum_backoff_time
-                should_backoff = False
-                minimum_backoff_time = 1
+                self.should_backoff = False
+                self.minimum_backoff_time = 1
 
 
         def on_disconnect(self, unused_client, unused_userdata, rc):
@@ -110,8 +108,7 @@ class GCloudIOT():
 
                 # Since a disconnect occurred, the next loop iteration will wait with
                 # exponential backoff.
-                should_backoff = self.should_backoff
-                should_backoff = True
+                self.should_backoff = True
 
 
         def on_publish(self, unused_client, unused_userdata, unused_mid):
