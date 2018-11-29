@@ -13,7 +13,7 @@ import paho.mqtt.client as mqtt
 # Settings for the user to change
 serialPort = 'COM3'
 frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
-frequencyMQTT = 12 # Number of MQTT telemetry reports per minute (at equal intervals)
+frequencyMQTT = 5 # Number of MQTT telemetry reports per minute (at equal intervals)
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped 
 # Make sure the script has permissions to write in the folder!
 
@@ -28,11 +28,16 @@ frc = 1/(frequencyLogfile / 60)
 frcMQTT = 1/(frequencyMQTT / 60)
 buffer = True if (frc != frcMQTT) else False
 vals = [] * 8
+dhMean = 0
+dhMeanList = [0.0 , 0.0]
+dhMeanListWrites = 0
+dhMeanLastWrite = -1
+dhTargetDev = 1.8
+dhTargetMeanJump = 0.25
 bufferList = []
 valPTAT = 0
+connected = False
 debug = False
-
-
 
 class GCloudIOT():
         # The initial backoff time after a disconnection occurs, in seconds.
@@ -169,17 +174,17 @@ class GCloudIOT():
         def main(self):
 
                 minimum_backoff_time = self.minimum_backoff_time
-                arg_project_id = self.arg_project_id #GCP Cloud Project ID
-                arg_registry_id = self.arg_registry_id #Cloud IoT Core registry NAME
-                arg_device_id = self.arg_device_id #Cloud IoT Core device NAME
-                arg_private_key_file = self.arg_private_key_file #Path to private key file
-                arg_algorithm = self.arg_algorithm #Encryption to generate JWT, RS256 or ES256 available
-                arg_cloud_region = self.arg_cloud_region #GCP Cloud Region
-                arg_ca_certs = self.arg_ca_certs #Path to CA root obtained from https://pki.google.com/roots.pem
-                arg_message_type = self.arg_message_type #Event (telemetry) or State(device state)
-                arg_mqtt_bridge_hostname = self.arg_mqtt_bridge_hostname #MQTT bridge hostname
-                arg_mqtt_bridge_port = self.arg_mqtt_bridge_port #MQTT bridge port, 8883 or 443 recommended
-                arg_jwt_expires_minutes = self.arg_jwt_expires_minutes #Expiration time, in minutes, for JWT tokens
+                arg_project_id = self.arg_project_id
+                arg_registry_id = self.arg_registry_id
+                arg_device_id = self.arg_device_id
+                arg_private_key_file = self.arg_private_key_file
+                arg_algorithm = self.arg_algorithm
+                arg_cloud_region = self.arg_cloud_region
+                arg_ca_certs = self.arg_ca_certs
+                arg_message_type = self.arg_message_type
+                arg_mqtt_bridge_hostname = self.arg_mqtt_bridge_hostname
+                arg_mqtt_bridge_port = self.arg_mqtt_bridge_port
+                arg_jwt_expires_minutes = self.arg_jwt_expires_minutes
 
                 global frcMQTT
 
@@ -214,14 +219,14 @@ class GCloudIOT():
                                 minimum_backoff_time *= 2
                                 client.connect(arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
 
-                        #Testing the buffer
+                        #Processing the buffer into our JSON object format
                         if (len(bufferList)>=(frcMQTT-1)):
                                 
                                 payload = ''
                                 for x in range(len(bufferList)):
                                         row = '{'
                                         for y in range(8):
-                                                row = row + '"sensor'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
+                                                row = row + '"s'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
                                         row = row + '"time":"' + str(bufferList[x][8]) + '"}'
                                         if (x<len(bufferList)-1):
                                                 row = row + ';'
@@ -248,18 +253,45 @@ class GCloudIOT():
                                 #This is in case it's out of sync, we wait 1 second so it possibly fixes the issue
                                 time.sleep(1)
                                 continue
-
-                        # Send events every second. State should not be updated as often
-                        #time.sleep(1 if arg_message_type == 'event' else 5)
                         
-                        # We're experimenting with 5 second intervals always (12 publishes per min), to save on queries.
-                        # Later we might adjust this
+                        # We're publishing the buffer 5 times per minute, to save on queries.
                         time.sleep(frcMQTT)
 
                 print('Finished.')
         # [END iot_mqtt_run]
 
+class DetectHuman():
+        def updateTo(self, arg):
+                global dhMean
+                global dhMeanLastWrite
 
+                dhMean = arg
+                dhMeanLastWrite = time.time()
+
+        def updateMeanList(self, arg):
+                global dhMeanListWrites
+                dhMeanList[0] = dhMeanList[1]
+                dhMeanList[1] = arg
+                dhMeanListWrites += 1
+        
+        def calcMean(self, arg): #Takes a list, calculates the mean of the entire list, returns float
+                data = []
+                for i in arg:
+                        data.append(int(i))
+
+                return (sum(data)/float(len(data)))
+        
+        def calcDev(self, arg): #Takes a list, calculates the deviation for each value, returns a list with the deviation values
+                valMean = self.calcMean(arg)
+                data = []
+                for i in arg:
+                        data.append(int(i))
+                devList = []
+                for i in data:
+                        dev = abs(valMean - i)
+                        devList.append(dev)
+                return devList
+                        
 class SerialThread(Thread):
  
     def __init__(self):
@@ -294,13 +326,16 @@ class SerialThread(Thread):
                 
                 valPTAT = temp[8]
 
+                global connected
+                connected = True
+            
                 if debug:
                     print("Values: {}".format(vals))
                     print("PTAT Value: {}".format(valPTAT))
 
 
 
-class WindowThread(Thread):
+class DataThread(Thread):
  
     def __init__(self):
         Thread.__init__(self)
@@ -310,49 +345,93 @@ class WindowThread(Thread):
             if vals:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
-                print(st)
+                
                 F = open(filePath, 'a')
                 stringPrint = st + ','
+                
+                #Writing the new data to the Buffer
                 global buffer
                 if buffer:
                         bufferVal = []
                         bufferVal.extend(vals)
                         bufferVal.append(st)
                         bufferList.append(bufferVal)
+                
                 for x in vals:
-                    stringPrint = stringPrint + str(x) + ','
+                        stringPrint = stringPrint + str(x) + ','
                 stringPrint = stringPrint + str(valPTAT) + '\n'
 
+                #Writing the new line in the file
                 F.write(stringPrint)
+                
+                #Waiting for the interval so we don't write too fast
                 time.sleep(frc)
 
-class GCPThread(Thread):
- 
-    def __init__(self):
-        Thread.__init__(self)
+class DetectHumanThread(Thread):
+        def __init__(self):
+                Thread.__init__(self)
         
-    def run(self):
-        GCloudIOT().main()
+        def run(self):
+                while(True):
+                        global connected
+
+                        if connected:
+                                global dhTargetDev
+                                global dhTargetMeanJump
+
+                                currentMean = DetectHuman().calcMean(vals)
+                                print("Current mean is {}".format(currentMean))
+                                
+                                global dhMeanLastWrite
+                                if dhMeanLastWrite == -1: #This means it's the first time getting a value
+                                        DetectHuman().updateTo(currentMean)
+                                
+                                currentDev = DetectHuman().calcDev(vals)
+                                if(max(currentDev)>=dhTargetDev):
+                                        print("1 Value too different. Human?")
+                                
+                                if(dhMeanLastWrite-time.time())>=60 and dhMeanLastWrite!=-1:
+                                        DetectHuman().updateTo(currentMean)
+                                
+                                DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
+                                if(dhMeanListWrites>2):
+                                        if(dhMeanList[1]-dhMeanList[0])>dhTargetMeanJump:
+                                                print("Sudden bump in mean. Human?")
+                                
+                                time.sleep(frc)
+
+class GCPThread(Thread):
+        def __init__(self):
+                Thread.__init__(self)
+        
+        def run(self):
+                GCloudIOT().main()
 
 
 
 if __name__ == '__main__':
+        
         thread1 = SerialThread()
         thread1.setName('Thread 1')
         
-        thread2 = WindowThread()
+        thread2 = DataThread()
         thread2.setName('Thread 2')
 
         thread3 = GCPThread()
         thread3.setName('Thread 3')
 
+        thread4 = DetectHumanThread()
+        thread4.setName('Thread 4')
+
         thread1.start()
         thread2.start()
         thread3.start()
+        thread4.start()
         
         thread1.join()
         thread2.join()
         thread3.join()
+        thread4.join()
         
         print('Main Terminating...')
 
