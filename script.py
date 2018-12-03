@@ -170,32 +170,19 @@ class GCloudIOT():
         # [START iot_mqtt_run]
         def main(self):
 
-                minimum_backoff_time = self.minimum_backoff_time
-                arg_project_id = self.arg_project_id
-                arg_registry_id = self.arg_registry_id
-                arg_device_id = self.arg_device_id
-                arg_private_key_file = self.arg_private_key_file
-                arg_algorithm = self.arg_algorithm
-                arg_cloud_region = self.arg_cloud_region
-                arg_ca_certs = self.arg_ca_certs
-                arg_message_type = self.arg_message_type
-                arg_mqtt_bridge_hostname = self.arg_mqtt_bridge_hostname
-                arg_mqtt_bridge_port = self.arg_mqtt_bridge_port
-                arg_jwt_expires_minutes = self.arg_jwt_expires_minutes
-
                 global frcMQTT
 
                 # Publish to the events or state topic based on the flag.
-                sub_topic = 'events' if arg_message_type == 'event' else 'state'
+                sub_topic = 'events' if self.arg_message_type == 'event' else 'state'
 
-                mqtt_topic = '/devices/{}/{}'.format(arg_device_id, sub_topic)
+                mqtt_topic = '/devices/{}/{}'.format(self.arg_device_id, sub_topic)
 
                 jwt_iat = datetime.datetime.utcnow()
-                jwt_exp_mins = arg_jwt_expires_minutes
+                jwt_exp_mins = self.arg_jwt_expires_minutes
                 client = self.get_client(
-                        arg_project_id, arg_cloud_region, arg_registry_id, arg_device_id,
-                        arg_private_key_file, arg_algorithm, arg_ca_certs,
-                        arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
+                        self.arg_project_id, self.arg_cloud_region, self.arg_registry_id, self.arg_device_id,
+                        self.arg_private_key_file, self.arg_algorithm, self.arg_ca_certs,
+                        self.arg_mqtt_bridge_hostname, self.arg_mqtt_bridge_port)
 
                 # Publish mesages to the MQTT bridge.
                 while(True):
@@ -205,16 +192,16 @@ class GCloudIOT():
                         # Wait if backoff is required.
                         if self.should_backoff:
                         # If backoff time is too large, give up.
-                                if minimum_backoff_time > self.MAXIMUM_BACKOFF_TIME:
+                                if self.minimum_backoff_time > self.MAXIMUM_BACKOFF_TIME:
                                         print('Exceeded maximum backoff time. Giving up.')
                                         break
 
                         # Otherwise, wait and connect again.
-                                delay = minimum_backoff_time + random.randint(0, 1000) / 1000.0
+                                delay = self.minimum_backoff_time + random.randint(0, 1000) / 1000.0
                                 print('Waiting for {} before reconnecting.'.format(delay))
                                 time.sleep(delay)
-                                minimum_backoff_time *= 2
-                                client.connect(arg_mqtt_bridge_hostname, arg_mqtt_bridge_port)
+                                self.minimum_backoff_time *= 2
+                                client.connect(self.arg_mqtt_bridge_hostname, self.arg_mqtt_bridge_port)
 
                         #Processing the buffer into our JSON object format
                         if (len(bufferList)>=(frcMQTT-1)):
@@ -236,10 +223,10 @@ class GCloudIOT():
                                         print('Refreshing token after {}s').format(seconds_since_issue)
                                         jwt_iat = datetime.datetime.utcnow()
                                         client = self.get_client(
-                                                arg_project_id, arg_cloud_region,
-                                                arg_registry_id, arg_device_id, arg_private_key_file,
-                                                arg_algorithm, arg_ca_certs, arg_mqtt_bridge_hostname,
-                                                arg_mqtt_bridge_port)
+                                                self.arg_project_id, self.arg_cloud_region,
+                                                self.arg_registry_id, self.arg_device_id, self.arg_private_key_file,
+                                                self.arg_algorithm, self.arg_ca_certs, self.arg_mqtt_bridge_hostname,
+                                                self.arg_mqtt_bridge_port)
                                 # [END iot_mqtt_jwt_refresh]
                                 # Publish "payload" to the MQTT topic. qos=1 means at least once
                                 # delivery. Cloud IoT Core also supports qos=0 for at most once
