@@ -14,8 +14,27 @@ import paho.mqtt.client as mqtt
 serialPort = 'COM3'
 frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
 frequencyMQTT = 5 # Number of MQTT telemetry reports per minute (at equal intervals)
-filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped 
-# Make sure the script has permissions to write in the folder!
+filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
+filePathDetail = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-detail.csv" # Full file path, properly escaped
+mode = "full-detail"
+mqtt_on = True
+csv_on = True
+
+
+## Modes
+# "full-detail" mode
+# It will output detail-level information. This means the temperature for each sensor cell.
+# This means only the detail .csv file is outputted and the MQTT telemetry will be also in detail
+
+# "mqtt-eco" mode
+# This mode will output mqtt in normal level, however it will output both detail and normal level .csv files
+# Normal level means only mean temperature and nr of people is outputted
+
+# "full-eco" mode
+# This mode will output both the MQTT telemetry and the .csv file in normal level.
+
+
+# !!! Make sure the script has permissions to write in the folder !!!
 
 
 ### Excel does not meet the csv standards. To correctly import in Excel either:
@@ -28,6 +47,8 @@ frc = 1/(frequencyLogfile / 60)
 frcMQTT = 1/(frequencyMQTT / 60)
 buffer = True if (frc != frcMQTT) else False
 vals = [] * 8
+valsEco = [] * 2
+currentPeople = 0
 dhMean = 0
 dhMeanList = [0.0 , 0.0]
 dhMeanListWrites = 0
@@ -206,16 +227,24 @@ class GCloudIOT():
                         #Processing the buffer into our JSON object format
                         if (len(bufferList)>=(frcMQTT-1)):
                                 
-                                payload = ''
-                                for x in range(len(bufferList)):
-                                        row = '{'
-                                        for y in range(8):
-                                                row = row + '"s'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
-                                        row = row + '"time":"' + str(bufferList[x][8]) + '"}'
-                                        if (x<len(bufferList)-1):
-                                                row = row + ';'
-                                        payload = payload + row
-                                
+                                if mode == "full-detail":
+                                        payload = ''
+                                        for x in range(len(bufferList)):
+                                                row = '{'
+                                                for y in range(8):
+                                                        row = row + '"s'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
+                                                row = row + '"time":"' + str(bufferList[x][8]) + '"}'
+                                                if (x<len(bufferList)-1):
+                                                        row = row + ';'
+                                                payload = payload + row
+                                else:
+                                        payload = ''
+                                        for x in range(len(bufferList)):
+                                                row = '{"m":"'+str(bufferList[x][0])+'","p":"'+str(bufferList[x][1])+'","t":"'+str(bufferList[x][2])+'"}'
+                                                if (x<len(bufferList)-1):
+                                                        row = row + ';'
+                                                payload = payload + row
+
                                 print('Publishing message: \'{}\''.format(payload))
                                 # [START iot_mqtt_jwt_refresh]
                                 seconds_since_issue = (datetime.datetime.utcnow() - jwt_iat).seconds
@@ -257,6 +286,11 @@ class DetectHuman():
                 dhMeanList[0] = dhMeanList[1]
                 dhMeanList[1] = arg
                 dhMeanListWrites += 1
+        
+        def updatePeople(self, arg):
+                global currentPeople
+                num = int(arg)
+                currentPeople += num
         
         def calcMean(self, arg): #Takes a list, calculates the mean of the entire list, returns float
                 data = []
@@ -330,24 +364,44 @@ class DataThread(Thread):
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
                 
-                F = open(filePath, 'a')
+                global currentPeople
+                valsEco[0] = DetectHuman().calcMean(vals)
+                valsEco[1] = currentPeople
+
                 stringPrint = st + ','
+                stringPrintEco = stringPrint
                 
                 #Writing the new data to the Buffer
                 global buffer
                 if buffer:
-                        bufferVal = []
-                        bufferVal.extend(vals)
-                        bufferVal.append(st)
-                        bufferList.append(bufferVal)
+                        if mode == "full-detail":
+                                bufferVal = []
+                                bufferVal.extend(vals)
+                                bufferVal.append(st)
+                                bufferList.append(bufferVal)
+                        else:
+                                bufferVal = []
+                                bufferVal.extend(valsEco)
+                                bufferVal.append(st)
+                                bufferList.append(bufferVal)
                 
                 for x in vals:
                         stringPrint = stringPrint + str(x) + ','
                 stringPrint = stringPrint + str(valPTAT) + '\n'
 
+                for x in valsEco:
+                        stringPrintEco = stringPrintEco + str(x) + ','
+                stringPrintEco = stringPrintEco + '\n'
+
                 #Writing the new line in the file
-                F.write(stringPrint)
-                
+                if csv_on:
+                        if mode != "full-eco":
+                                F = open(filePathDetail, 'a')
+                                F.write(stringPrint)
+                        
+                        F = open(filePath, 'a')
+                        F.write(stringPrintEco)
+                                        
                 #Waiting for the interval so we don't write too fast
                 time.sleep(frc)
 
@@ -401,21 +455,22 @@ if __name__ == '__main__':
         thread2 = DataThread()
         thread2.setName('Thread 2')
 
-        thread3 = GCPThread()
-        thread3.setName('Thread 3')
-
         thread4 = DetectHumanThread()
         thread4.setName('Thread 4')
 
         thread1.start()
         thread2.start()
-        thread3.start()
         thread4.start()
         
         thread1.join()
         thread2.join()
-        thread3.join()
         thread4.join()
+
+        if mqtt_on:
+                thread3 = GCPThread()
+                thread3.setName('Thread 3')
+                thread3.start()
+                thread3.join()
         
         print('Main Terminating...')
 
