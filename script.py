@@ -315,6 +315,26 @@ class DataProcessing():
                 F = open(filepath, 'a')
                 F.write(txt)
 
+        def addToBuffer(self, time, value):
+                global bufferList
+                bufferVal = []
+                bufferVal.extend(value)
+                bufferVal.append(time)
+                bufferList.append(bufferVal)
+        
+        def buildCsvString(self, time, values):
+                finalString = time + ','
+                for x in range(len(values)):
+                        if x < len(values)-1:
+                                finalString += string(values[x]) + ','
+                        else:
+                                finalString += string(values[x])
+                finalString += '\n'
+                return finalString
+
+
+
+
                         
 class SerialThread(Thread):
  
@@ -373,31 +393,20 @@ class DataThread(Thread):
                 global currentPeople
                 valsEco[0] = DetectHuman().calcMean(vals)
                 valsEco[1] = currentPeople
-
-                stringPrint = st + ','
-                stringPrintEco = stringPrint
                 
                 #Writing the new data to the Buffer
                 global buffer
                 if buffer:
                         if mode == "full-detail":
-                                bufferVal = []
-                                bufferVal.extend(vals)
-                                bufferVal.append(st)
-                                bufferList.append(bufferVal)
+                                DataProcessing().addToBuffer(st, vals)
                         else:
-                                bufferVal = []
-                                bufferVal.extend(valsEco)
-                                bufferVal.append(st)
-                                bufferList.append(bufferVal)
-                
-                for x in vals:
-                        stringPrint = stringPrint + str(x) + ','
-                stringPrint = stringPrint + str(valPTAT) + '\n'
+                                DataProcessing().addToBuffer(st, valsEco)
 
-                for x in valsEco:
-                        stringPrintEco = stringPrintEco + str(x) + ','
-                stringPrintEco = stringPrintEco + '\n'
+                printVals = []
+                printVals.extend(vals)
+                printVals.append(valPTAT)
+                stringPrint = DataProcessing().buildCsvString(st, printVals)
+                stringPrintEco = DataProcessing().buildCsvString(st, valsEco)
 
                 #Writing the new line in the file
                 if csv_on:
@@ -430,10 +439,13 @@ class DetectHumanThread(Thread):
                                 if dhMeanLastWrite == -1: #This means it's the first time getting a value
                                         DetectHuman().updateTo(currentMean)
                                 
+                                
                                 currentDev = DetectHuman().calcDev(vals)
+                                '''
                                 if(max(currentDev)>=dhTargetDev):
                                         print("1 Value too different. Human?")
-                                
+                                '''
+
                                 if(dhMeanLastWrite-time.time())>=60 and dhMeanLastWrite!=-1:
                                         DetectHuman().updateTo(currentMean)
                                 
