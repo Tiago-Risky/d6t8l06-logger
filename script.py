@@ -14,6 +14,9 @@ import paho.mqtt.client as mqtt
 serialPort = 'COM3'
 frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
 frequencyMQTT = 5 # Number of MQTT telemetry reports per minute (at equal intervals)
+TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
+TargetMeanJump = 0.25 # This is the value for a jump in the mean that should signal human presence
+debug = False # If this is enabled the script will output the values being read to the console
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
 filePathDetail = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-detail.csv" # Full file path, properly escaped
 mode = "full-detail"
@@ -23,42 +26,38 @@ csv_on = True
 
 ## Modes
 # "full-detail" mode
-# It will output detail-level information. This means the temperature for each sensor cell.
-# This means only the detail .csv file is outputted and the MQTT telemetry will be also in detail
+# This means both the Detail and Normal .csv files are outputted and the MQTT telemetry will be Detail only
 
-# "mqtt-eco" mode
-# This mode will output mqtt in normal level, however it will output both detail and normal level .csv files
-# Normal level means only mean temperature and nr of people is outputted
+# "mqtt-normal" mode
+# This mode will output mqtt in Normal level, however it will output both Detail and Normal level .csv files
 
-# "full-eco" mode
-# This mode will output both the MQTT telemetry and the .csv file in normal level.
+# "full-normal" mode
+# This mode will output both the MQTT telemetry and the .csv file in Normal level only.
 
+## Levels of information detail
+# "Normal" level means only mean temperature and nr of people is outputted.
+# "Detail" level means the temperature for each sensor cell is outputted.
 
 # !!! Make sure the script has permissions to write in the folder !!!
 
 
 ### Excel does not meet the csv standards. To correctly import in Excel either:
-## Add SEP=, in the first line (not required for other softwares, will appear as a value in other softwares)
-## Change the extension to .txt and run the Text Importing Assistant
+## 1. Add SEP=, in the first line (not required for other softwares, will appear as a value in other softwares)
+## 2. Change the extension to .txt and run the Text Importing Assistant
 
 # End of Settings
 
 frc = 1/(frequencyLogfile / 60)
 frcMQTT = 1/(frequencyMQTT / 60)
 buffer = True if (frc != frcMQTT) else False
-vals = [] * 8
-valsEco = [] * 2
+valsDetail = [] * 8
+valsNormal = [] * 2
 currentPeople = 0
-dhMean = 0
 dhMeanList = [0.0 , 0.0]
 dhMeanListWrites = 0
-dhMeanLastWrite = -1
-dhTargetDev = 1.8
-dhTargetMeanJump = 0.25
 bufferList = []
 valPTAT = 0
 connected = False
-debug = False
 
 class GCloudIOT():
         # The initial backoff time after a disconnection occurs, in seconds.
@@ -227,23 +226,7 @@ class GCloudIOT():
                         #Processing the buffer into our JSON object format
                         if (len(bufferList)>=(frcMQTT-1)):
                                 
-                                if mode == "full-detail":
-                                        payload = ''
-                                        for x in range(len(bufferList)):
-                                                row = '{'
-                                                for y in range(8):
-                                                        row = row + '"s'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
-                                                row = row + '"time":"' + str(bufferList[x][8]) + '"}'
-                                                if (x<len(bufferList)-1):
-                                                        row = row + ';'
-                                                payload = payload + row
-                                else:
-                                        payload = ''
-                                        for x in range(len(bufferList)):
-                                                row = '{"m":"'+str(bufferList[x][0])+'","p":"'+str(bufferList[x][1])+'","t":"'+str(bufferList[x][2])+'"}'
-                                                if (x<len(bufferList)-1):
-                                                        row = row + ';'
-                                                payload = payload + row
+                                payload = DataProcessing().buildPayload()
 
                                 print('Publishing message: \'{}\''.format(payload))
                                 # [START iot_mqtt_jwt_refresh]
@@ -274,13 +257,6 @@ class GCloudIOT():
         # [END iot_mqtt_run]
 
 class DetectHuman():
-        def updateTo(self, arg):
-                global dhMean
-                global dhMeanLastWrite
-
-                dhMean = arg
-                dhMeanLastWrite = time.time()
-
         def updateMeanList(self, arg):
                 global dhMeanListWrites
                 dhMeanList[0] = dhMeanList[1]
@@ -326,13 +302,30 @@ class DataProcessing():
                 finalString = time + ','
                 for x in range(len(values)):
                         if x < len(values)-1:
-                                finalString += string(values[x]) + ','
+                                finalString += str(values[x]) + ','
                         else:
-                                finalString += string(values[x])
+                                finalString += str(values[x])
                 finalString += '\n'
                 return finalString
 
-
+        def buildPayload(self):
+                payload = ''
+                if mode == "full-detail":
+                        for x in range(len(bufferList)):
+                                row = '{'
+                                for y in range(8):
+                                        row = row + '"s'+str(y+1)+'":"'+str(bufferList[x][y])+'",'
+                                row = row + '"time":"' + str(bufferList[x][8]) + '"}'
+                                if (x<len(bufferList)-1):
+                                        row = row + ';'
+                                payload = payload + row
+                else:
+                        for x in range(len(bufferList)):
+                                row = '{"m":"'+str(bufferList[x][0])+'","p":"'+str(bufferList[x][1])+'","t":"'+str(bufferList[x][2])+'"}'
+                                if (x<len(bufferList)-1):
+                                        row = row + ';'
+                                payload = payload + row
+                return payload
 
 
                         
@@ -355,18 +348,18 @@ class SerialThread(Thread):
 
         print("Listening")
 
-        global vals
+        global valsDetail
 
         while True:
-            if not vals:
-                vals = [0]*8
+            if not valsDetail:
+                valsDetail = [0]*8
             else:
                 global valPTAT
                 ler = conn.readline().decode()
                 ler = ler.strip()
                 temp = ler.split(",")
                 for i in range(8):
-                        vals[i] = temp[i]
+                        valsDetail[i] = temp[i]
                 
                 valPTAT = temp[8]
 
@@ -374,7 +367,7 @@ class SerialThread(Thread):
                 connected = True
             
                 if debug:
-                    print("Values: {}".format(vals))
+                    print("Values: {}".format(valsDetail))
                     print("PTAT Value: {}".format(valPTAT))
 
 
@@ -386,31 +379,31 @@ class DataThread(Thread):
         
     def run(self):
         while(True):
-            if vals:
+            if valsDetail:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
                 
                 global currentPeople
-                valsEco[0] = DetectHuman().calcMean(vals)
-                valsEco[1] = currentPeople
+                valsNormal[0] = DetectHuman().calcMean(valsDetail)
+                valsNormal[1] = currentPeople
                 
                 #Writing the new data to the Buffer
                 global buffer
                 if buffer:
                         if mode == "full-detail":
-                                DataProcessing().addToBuffer(st, vals)
+                                DataProcessing().addToBuffer(st, valsDetail)
                         else:
-                                DataProcessing().addToBuffer(st, valsEco)
+                                DataProcessing().addToBuffer(st, valsNormal)
 
                 printVals = []
-                printVals.extend(vals)
+                printVals.extend(valsDetail)
                 printVals.append(valPTAT)
                 stringPrint = DataProcessing().buildCsvString(st, printVals)
-                stringPrintEco = DataProcessing().buildCsvString(st, valsEco)
+                stringPrintEco = DataProcessing().buildCsvString(st, valsNormal)
 
                 #Writing the new line in the file
                 if csv_on:
-                        if mode != "full-eco":
+                        if mode != "full-normal":
                                 DataProcessing().addToFile(filePathDetail, stringPrint)
                         DataProcessing().addToFile(filePath, stringPrintEco)
 
@@ -427,37 +420,25 @@ class DetectHumanThread(Thread):
         def run(self):
                 while(True):
                         global connected
-
                         if connected:
-                                global dhTargetDev
-                                global dhTargetMeanJump
+                                global TargetDev
+                                global TargetMeanJump
 
-                                currentMean = DetectHuman().calcMean(vals)
+                                currentMean = DetectHuman().calcMean(valsDetail)
                                 print("Current mean is {}".format(currentMean))
                                 
-                                global dhMeanLastWrite
-                                if dhMeanLastWrite == -1: #This means it's the first time getting a value
-                                        DetectHuman().updateTo(currentMean)
-                                
-                                
-                                currentDev = DetectHuman().calcDev(vals)
-                                '''
-                                if(max(currentDev)>=dhTargetDev):
-                                        print("1 Value too different. Human?")
-                                '''
-
-                                if(dhMeanLastWrite-time.time())>=60 and dhMeanLastWrite!=-1:
-                                        DetectHuman().updateTo(currentMean)
+                                currentDev = DetectHuman().calcDev(valsDetail)
                                 
                                 DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
+                                
                                 global currentPeople
                                 if(dhMeanListWrites>2):
-                                        if(dhMeanList[1]-dhMeanList[0])>dhTargetMeanJump:
+                                        if(dhMeanList[1]-dhMeanList[0])>TargetMeanJump:
                                                 ## Bump in mean here
                                                 currentPeople +=1
                                                 counter = 0
                                                 for d in currentDev:
-                                                        if d > (currentMean+dhTargetMeanJump):
+                                                        if d > (currentMean+TargetMeanJump):
                                                                 counter+=1
                                                 if counter>currentPeople:
                                                         currentPeople=counter
@@ -466,11 +447,11 @@ class DetectHumanThread(Thread):
                                                         ## for the human body temperature at the devices distance.
                                                         ## It could even be a setup value
 
-                                        if(dhMeanList[0]-dhMeanList[1])>dhTargetMeanJump:
+                                        if(dhMeanList[0]-dhMeanList[1])>TargetMeanJump:
                                                 ## Negative bump here
                                                 counter = 0
                                                 for d in currentDev:
-                                                        if d > (currentMean+dhTargetMeanJump):
+                                                        if d > (currentMean+TargetMeanJump):
                                                                 counter+=1
                                                 if counter<=(currentPeople-1):
                                                         currentPeople-=1
