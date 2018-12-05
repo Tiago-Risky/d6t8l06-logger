@@ -309,6 +309,12 @@ class DetectHuman():
                         dev = abs(valMean - i)
                         devList.append(dev)
                 return devList
+
+class DataProcessing():
+        def addToFile(self, filepath, txt):
+                F = open(filepath, 'a')
+                F.write(txt)
+
                         
 class SerialThread(Thread):
  
@@ -396,12 +402,12 @@ class DataThread(Thread):
                 #Writing the new line in the file
                 if csv_on:
                         if mode != "full-eco":
-                                F = open(filePathDetail, 'a')
-                                F.write(stringPrint)
-                        
-                        F = open(filePath, 'a')
-                        F.write(stringPrintEco)
-                                        
+                                DataProcessing().addToFile(filePathDetail, stringPrint)
+                        DataProcessing().addToFile(filePath, stringPrintEco)
+
+                ## Add this all to the same file?
+                ## Need a way to process this into the table as a annotation
+
                 #Waiting for the interval so we don't write too fast
                 time.sleep(frc)
 
@@ -432,10 +438,36 @@ class DetectHumanThread(Thread):
                                         DetectHuman().updateTo(currentMean)
                                 
                                 DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
+                                global currentPeople
                                 if(dhMeanListWrites>2):
                                         if(dhMeanList[1]-dhMeanList[0])>dhTargetMeanJump:
-                                                print("Sudden bump in mean. Human?")
-                                
+                                                ## Bump in mean here
+                                                currentPeople +=1
+                                                counter = 0
+                                                for d in currentDev:
+                                                        if d > (currentMean+dhTargetMeanJump):
+                                                                counter+=1
+                                                if counter>currentPeople:
+                                                        currentPeople=counter
+                                                        ## This means that other objects that are above the mean could potentially
+                                                        ## trigger as humans. this has to be checked maybe with more certain values
+                                                        ## for the human body temperature at the devices distance.
+                                                        ## It could even be a setup value
+
+                                        if(dhMeanList[0]-dhMeanList[1])>dhTargetMeanJump:
+                                                ## Negative bump here
+                                                counter = 0
+                                                for d in currentDev:
+                                                        if d > (currentMean+dhTargetMeanJump):
+                                                                counter+=1
+                                                if counter<=(currentPeople-1):
+                                                        currentPeople-=1
+                                                ## This means if 2 people leave in the same 1 second frame they will not be
+                                                ## detected, only 1 will be. However the fix for this implies that
+                                                ## In a room where the mean is too close to the people in the sensor
+                                                ## Aka = imagine all sensors covered with people
+                                                ## Then it would always detect 0 people when the mean would drop
+ 
                                 time.sleep(frc)
 
 class GCPThread(Thread):
