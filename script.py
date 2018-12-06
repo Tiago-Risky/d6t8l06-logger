@@ -2,31 +2,48 @@ from threading import Thread
 import time
 import serial
 import datetime
-
 import os
+import sys
 import random
 import ssl
-
 import jwt
 import paho.mqtt.client as mqtt
-
 import numpy as np
-import argparse #TODO this is temporary
 import cv2
+from imutils.video import VideoStream 
+import imutils
 
-# Settings for the user to change
+##### Settings for the user to change #####
+
+#Device setup
 serialPort = 'COM3'
+
+#Writing frequencies
 frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
 frequencyMQTT = 5 # Number of MQTT telemetry reports per minute (at equal intervals)
+
+#Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
 TargetMeanJump = 0.25 # This is the value for a jump in the mean that should signal human presence
-debug = False # If this is enabled the script will output the values being read to the console
+
+#Camera detection configuration
+yolov3_classes = os.path.split(sys.argv[0])[0] + "/yolov3.txt"
+yolov3_config = os.path.split(sys.argv[0])[0] + "/yolov3.cfg"
+yolov3_weights = os.path.split(sys.argv[0])[0] + "/yolov3.weights"
+
+## os.path.split(sys.argv[0])[0] will retrieve the directory the script is running from, accurately
+
+#CSV file writing
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
 filePathDetail = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-detail.csv" # Full file path, properly escaped
-mode = "full-detail"
+
+#Functionality setup
+debug = False # If this is enabled the script will output the values being read to the console
+mode = "full-detail" # Check "Modes" for details
 mqtt_on = True
 csv_on = True
-
+cam_on = True
+cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 
 ## Modes
 # "full-detail" mode
@@ -49,7 +66,7 @@ csv_on = True
 ## 1. Add SEP=, in the first line (not required for other softwares, will appear as a value in other softwares)
 ## 2. Change the extension to .txt and run the Text Importing Assistant
 
-# End of Settings
+##### End of Settings #####
 
 frc = 1/(frequencyLogfile / 60)
 frcMQTT = 1/(frequencyMQTT / 60)
@@ -336,81 +353,92 @@ class CameraDetection():
         classes = None
 
         def main(self):
+                global yolov3_classes
+                global yolov3_weights
+                global yolov3_config
 
-                ## TODO remove args and turn them into user configurations!
-                ap = argparse.ArgumentParser()
-                ap.add_argument('-i', '--image', required=True,
-                                help = 'path to input image')
-                ap.add_argument('-c', '--config', required=True,
-                                help = 'path to yolo config file')
-                ap.add_argument('-w', '--weights', required=True,
-                                help = 'path to yolo pre-trained weights')
-                ap.add_argument('-cl', '--classes', required=True,
-                                help = 'path to text file containing class names')
-                args = ap.parse_args()
+                vs = None
+                if cam_mode == "pi":
+                        vs = VideoStream(usePiCamera=True).start()
+                elif cam_mode == "usb":
+                        vs = VideoStream(src=0).start()
+                else:
+                        print("Camera mode is not properly setup")
+                        exit()
+                
+                time.sleep(2.0) #Delay for camera VideoStream to start
 
-
-                image = cv2.imread(args.image)
-
-                Width = image.shape[1]
-                Height = image.shape[0]
-                scale = 0.00392
-
-                self.classes = None
-
-                with open(args.classes, 'r') as f:
+                #Setting up the classes
+                with open(yolov3_classes, 'r') as f:
                         self.classes = [line.strip() for line in f.readlines()]
 
-                self.COLORS = np.random.uniform(0, 255, size=(len(classes), 3))
+                #Setting up the colors
+                self.COLORS = np.random.uniform(0, 255, size=(len(self.classes), 3))
 
-                net = cv2.dnn.readNet(args.weights, args.config)
+                #Loading the model
+                net = cv2.dnn.readNet(yolov3_weights, yolov3_config)
 
-                blob = cv2.dnn.blobFromImage(image, scale, (416,416), (0,0,0), True, crop=False)
+                while True:
+                        ts = time.time()
+                        st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
 
-                net.setInput(blob)
+                        # grab the frame from the threaded video stream and resize it
+                        # to have a maximum width of 400 pixels
+                        frame = vs.read()
+                        frame = imutils.resize(frame, width=400)
+                
+                        # grab the frame dimensions and convert it to a blob
+                        Height, Width = frame.shape[:2]
+                        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
+                                0.007843, (300, 300), 127.5)
+                
+                        # pass the blob through the network and obtain the detections and
+                        # predictions
+                        net.setInput(blob)
 
-                outs = net.forward(self.get_output_layers(net))
+                        outs = net.forward(self.get_output_layers(net))
 
-                class_ids = []
-                confidences = []
-                boxes = []
-                conf_threshold = 0.5
-                nms_threshold = 0.4
-
-
-                for out in outs:
-                        for detection in out:
-                                scores = detection[5:]
-                                class_id = np.argmax(scores)
-                                confidence = scores[class_id]
-                                if confidence > 0.5:
-                                        center_x = int(detection[0] * Width)
-                                        center_y = int(detection[1] * Height)
-                                        w = int(detection[2] * Width)
-                                        h = int(detection[3] * Height)
-                                        x = center_x - w / 2
-                                        y = center_y - h / 2
-                                        class_ids.append(class_id)
-                                        confidences.append(float(confidence))
-                                        boxes.append([x, y, w, h])
+                        class_ids = []
+                        confidences = []
+                        boxes = []
+                        conf_threshold = 0.5
+                        nms_threshold = 0.4
+                        camPeople = 0
 
 
-                indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
+                        for out in outs:
+                                for detection in out:
+                                        scores = detection[5:]
+                                        class_id = np.argmax(scores)
+                                        confidence = scores[class_id]
+                                        if confidence > 0.5:
+                                                center_x = int(detection[0] * Width)
+                                                center_y = int(detection[1] * Height)
+                                                w = int(detection[2] * Width)
+                                                h = int(detection[3] * Height)
+                                                x = center_x - w / 2
+                                                y = center_y - h / 2
+                                                class_ids.append(class_id)
+                                                confidences.append(float(confidence))
+                                                boxes.append([x, y, w, h])
 
-                for i in indices:
-                        i = i[0]
-                        box = boxes[i]
-                        x = box[0]
-                        y = box[1]
-                        w = box[2]
-                        h = box[3]
-                        self.draw_prediction(image, class_ids[i], confidences[i], round(x), round(y), round(x+w), round(y+h))
 
-                cv2.imshow("object detection", image)
-                cv2.waitKey()
+                        indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
 
-                cv2.imwrite("object-detection.jpg", image)
-                cv2.destroyAllWindows()
+                        for i in indices:
+                                i = i[0]
+                                box = boxes[i]
+                                x = box[0]
+                                y = box[1]
+                                w = box[2]
+                                h = box[3]
+                                self.draw_prediction(frame, class_ids[i], confidences[i], round(x), round(y), round(x+w), round(y+h))
+                                if self.classes[class_id] == "person":
+                                        camPeople += 1
+                                
+                        imageName = st + '_' + str(camPeople)  + '.jpg'
+                        cv2.imwrite(imageName, frame)
+                        cv2.destroyAllWindows()
 
         def get_output_layers(self, net):
                 layer_names = net.getLayerNames()
@@ -423,7 +451,6 @@ class CameraDetection():
                 color = self.COLORS[class_id]
                 cv2.rectangle(img, (x,y), (x_plus_w,y_plus_h), color, 2)
                 cv2.putText(img, label, (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
 
 
 ## Thread classes
