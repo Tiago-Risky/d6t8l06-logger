@@ -1,6 +1,6 @@
 # D6T8L06
 
-This application will log the values read from the D6T8L06 and export them to a CSV or through the Google API to the cloud.
+This application will log the values read from the D6T8L06, attempt to detect people, and export the values and results to a CSV or through the Google API to the cloud. It can also detect people using a Camera (usb or Pi camera), which we are using as a test/control measure for development.
 
 This is still a work-in-progress application.
 
