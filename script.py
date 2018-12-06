@@ -413,6 +413,8 @@ class CameraDetection():
                                 for detection in out:
                                         scores = detection[5:]
                                         class_id = np.argmax(scores)
+                                        if self.classes[class_id] == "person":
+                                                camPeople += 1
                                         confidence = scores[class_id]
                                         if confidence > 0.5:
                                                 center_x = int(detection[0] * Width)
@@ -436,12 +438,10 @@ class CameraDetection():
                                 w = box[2]
                                 h = box[3]
                                 self.draw_prediction(frame, class_ids[i], confidences[i], round(x), round(y), round(x+w), round(y+h))
-                                if self.classes[class_id] == "person":
-                                        camPeople += 1
                                 
-                        imageName = st + '_' + str(camPeople)  + '.jpg'
+                        imageName = st + '_' + str(camPeople)  + 'p.jpg'
                         cv2.imwrite(imageName, frame)
-                        cv2.destroyAllWindows()
+                        cv2.destroyAllWindows() #Need?
 
                         time.sleep(frcCam)
 
@@ -478,12 +478,7 @@ class SerialThread(Thread):
 
         print("Listening")
 
-        global valsDetail
-
         while True:
-            if not valsDetail:
-                valsDetail = [0]*8
-            else:
                 global valPTAT
                 ler = conn.readline().decode()
                 ler = ler.strip()

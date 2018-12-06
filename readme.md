@@ -4,6 +4,12 @@ This application will log the values read from the D6T8L06, attempt to detect pe
 
 This is still a work-in-progress application.
 
+## Dependencies to be installed
+
+Here's how to solve all your Python dependencies for this project:
+
+    python3 -m pip install -r requirements.txt
+
 ## Google IoT Core source
 
 My Google IoT Core MQTT code is based on https://github.com/GoogleCloudPlatform/python-docs-samples/blob/master/iot/api-client/mqtt_example/cloudiot_mqtt_example.py

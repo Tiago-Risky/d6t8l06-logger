@@ -1,0 +1,6 @@
+imutils==0.5.2
+numpy==1.15.4
+opencv_python==3.4.4.19
+PyJWT==1.7.0
+paho_mqtt==1.4.0
+pyserial==3.4
