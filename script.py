@@ -21,6 +21,7 @@ serialPort = 'COM3'
 #Writing frequencies
 frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
 frequencyMQTT = 5 # Number of MQTT telemetry reports per minute (at equal intervals)
+frequencyCam = 10 # Number of camera pictures saved per minute (at equal intervals)
 
 #Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
@@ -70,6 +71,7 @@ cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 
 frc = 1/(frequencyLogfile / 60)
 frcMQTT = 1/(frequencyMQTT / 60)
+frcCam = 1/(frequencyCam / 60)
 buffer = True if (frc != frcMQTT) else False
 valsDetail = [] * 8
 valsNormal = [] * 2
@@ -349,13 +351,14 @@ class DataProcessing():
                 return payload
 
 class CameraDetection():
-        COLORS = None
+        colours = None
         classes = None
 
         def main(self):
                 global yolov3_classes
                 global yolov3_weights
                 global yolov3_config
+                global frcCam
 
                 vs = None
                 if cam_mode == "pi":
@@ -372,8 +375,8 @@ class CameraDetection():
                 with open(yolov3_classes, 'r') as f:
                         self.classes = [line.strip() for line in f.readlines()]
 
-                #Setting up the colors
-                self.COLORS = np.random.uniform(0, 255, size=(len(self.classes), 3))
+                #Setting up the colours
+                self.colours = np.random.uniform(0, 255, size=(len(self.classes), 3))
 
                 #Loading the model
                 net = cv2.dnn.readNet(yolov3_weights, yolov3_config)
@@ -440,6 +443,8 @@ class CameraDetection():
                         cv2.imwrite(imageName, frame)
                         cv2.destroyAllWindows()
 
+                        time.sleep(frcCam)
+
         def get_output_layers(self, net):
                 layer_names = net.getLayerNames()
                 output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
@@ -448,9 +453,9 @@ class CameraDetection():
         
         def draw_prediction(self, img, class_id, confidence, x, y, x_plus_w, y_plus_h):
                 label = str(self.classes[class_id])
-                color = self.COLORS[class_id]
-                cv2.rectangle(img, (x,y), (x_plus_w,y_plus_h), color, 2)
-                cv2.putText(img, label, (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                colour = self.colours[class_id]
+                cv2.rectangle(img, (x,y), (x_plus_w,y_plus_h), colour, 2)
+                cv2.putText(img, label, (x-10,y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colour, 2)
 
 
 ## Thread classes
