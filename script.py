@@ -606,8 +606,7 @@ class CameraThread(Thread):
                 Thread.__init__(self)
         
         def run(self):
-                ##Camera stuff here
-                return None
+                CameraDetection().main()
 
 ## Main routine
 if __name__ == '__main__':
@@ -621,18 +620,19 @@ if __name__ == '__main__':
         thread3 = DetectHumanThread()
         thread3.setName('Thread 3')
 
-        thread4 = CameraThread()
-        thread4.setName('Thread 4')
-
         thread1.start()
         thread2.start()
         thread3.start()
-        #thread4.start() This is still in development
         
         thread1.join()
         thread2.join()
         thread3.join()
-        #thread4.join() This is still in development
+
+        if cam_on:
+                thread4 = CameraThread()
+                thread4.setName('Thread 4')
+                thread4.start()
+                thread4.join()
 
         if mqtt_on:
                 thread5 = GCPThread()
