@@ -18,10 +18,11 @@ import imutils
 #Device setup
 serialPort = 'COM3'
 
-#Writing frequencies
-frequencyLogfile = 60 # Number of entry records per minute (at equal intervals)
-frequencyMQTT = 5 # Number of MQTT telemetry reports per minute (at equal intervals)
-frequencyCam = 10 # Number of camera pictures saved per minute (at equal intervals)
+##Writing intervals
+# This is the waiting time between writing calls, in seconds
+pLogFile = 1 # Interval between logfile writes
+pMQTT = 12 # Interval between MQTT telemetry reports ()
+pCam = 6 # Interval between camera picture saving and detecting
 
 #Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
@@ -68,11 +69,7 @@ cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 ## 2. Change the extension to .txt and run the Text Importing Assistant
 
 ##### End of Settings #####
-
-frc = 1/(frequencyLogfile / 60)
-frcMQTT = 1/(frequencyMQTT / 60)
-frcCam = 1/(frequencyCam / 60)
-buffer = True if (frc != frcMQTT) else False
+buffer = True if (pLogFile != pMQTT) else False
 valsDetail = [] * 8
 valsNormal = [] * 2
 currentPeople = 0
@@ -213,7 +210,7 @@ class GCloudIOT():
         # [START iot_mqtt_run]
         def main(self):
 
-                global frcMQTT
+                global pMQTT
 
                 # Publish to the events or state topic based on the flag.
                 sub_topic = 'events' if self.arg_message_type == 'event' else 'state'
@@ -247,7 +244,7 @@ class GCloudIOT():
                                 client.connect(self.arg_mqtt_bridge_hostname, self.arg_mqtt_bridge_port)
 
                         #Processing the buffer into our JSON object format
-                        if (len(bufferList)>=(frcMQTT-1)):
+                        if (len(bufferList)>=(pMQTT-1)):
                                 
                                 payload = DataProcessing().buildPayload()
 
@@ -274,7 +271,7 @@ class GCloudIOT():
                                 continue
                         
                         # We're publishing the buffer 5 times per minute, to save on queries.
-                        time.sleep(frcMQTT)
+                        time.sleep(pMQTT)
 
                 print('Finished.')
         # [END iot_mqtt_run]
@@ -358,7 +355,7 @@ class CameraDetection():
                 global yolov3_classes
                 global yolov3_weights
                 global yolov3_config
-                global frcCam
+                global pCam
 
                 vs = None
                 if cam_mode == "pi":
@@ -443,7 +440,7 @@ class CameraDetection():
                         cv2.imwrite(imageName, frame)
                         cv2.destroyAllWindows() #Need?
 
-                        time.sleep(frcCam)
+                        time.sleep(pCam)
 
         def get_output_layers(self, net):
                 layer_names = net.getLayerNames()
@@ -536,7 +533,7 @@ class DataThread(Thread):
                 ## Need a way to process this into the table as a annotation
 
                 #Waiting for the interval so we don't write too fast
-                time.sleep(frc)
+                time.sleep(pLogFile)
 
 class DetectHumanThread(Thread):
         def __init__(self):
@@ -586,7 +583,7 @@ class DetectHumanThread(Thread):
                                                 ## Aka = imagine all sensors covered with people
                                                 ## Then it would always detect 0 people when the mean would drop
  
-                                time.sleep(frc)
+                                time.sleep(pLogFile)
 
 class GCPThread(Thread):
         def __init__(self):
