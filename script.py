@@ -79,6 +79,7 @@ dhMeanListWrites = 0
 bufferList = []
 valPTAT = 0
 connected = False
+notKill = True
 
 class GCloudIOT():
         # The initial backoff time after a disconnection occurs, in seconds.
@@ -226,7 +227,8 @@ class GCloudIOT():
                         self.arg_mqtt_bridge_hostname, self.arg_mqtt_bridge_port)
 
                 # Publish mesages to the MQTT bridge.
-                while(True):
+                global notKill
+                while(notKill):
                         # Process network events.
                         client.loop()
 
@@ -379,7 +381,8 @@ class CameraDetection():
                 #Loading the model
                 net = cv2.dnn.readNet(yolov3_weights, yolov3_config)
 
-                while True:
+                global notKill
+                while notKill:
                         ts = time.time()
                         st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
                         st2 = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d,%H%M%S')
@@ -478,7 +481,8 @@ class SerialThread(Thread):
 
         print("Listening")
 
-        while True:
+        global notKill
+        while notKill:
                 global valPTAT
                 ler = conn.readline().decode()
                 ler = ler.strip()
@@ -503,7 +507,8 @@ class DataThread(Thread):
         Thread.__init__(self)
         
     def run(self):
-        while(True):
+        global notKill
+        while notKill:
             if valsDetail:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
@@ -543,7 +548,8 @@ class DetectHumanThread(Thread):
                 Thread.__init__(self)
         
         def run(self):
-                while(True):
+                global notKill
+                while notKill:
                         global connected
                         if connected:
                                 global TargetDev
@@ -605,7 +611,6 @@ class CameraThread(Thread):
 
 ## Main routine
 if __name__ == '__main__':
-        
         thread1 = SerialThread()
         thread1.setName('Thread 1')
         
@@ -619,21 +624,30 @@ if __name__ == '__main__':
         thread2.start()
         thread3.start()
         
-        thread1.join()
-        thread2.join()
-        thread3.join()
+        try:        
+                thread1.join()
+                thread2.join()
+                thread3.join()
+        except KeyboardInterrupt:
+                notKill=False
 
         if cam_on:
                 thread4 = CameraThread()
                 thread4.setName('Thread 4')
                 thread4.start()
-                thread4.join()
+                try:
+                        thread4.join()
+                except KeyboardInterrupt:
+                        notKill=False
 
         if mqtt_on:
                 thread5 = GCPThread()
                 thread5.setName('Thread 5')
                 thread5.start()
-                thread5.join()
+                try:
+                        thread5.join()
+                except KeyboardInterrupt:
+                        notKill=False
         
         print('Main Terminating...')
 
