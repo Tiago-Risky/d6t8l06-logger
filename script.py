@@ -43,9 +43,9 @@ filePathCamLog = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-cam.csv"
 #Functionality setup
 debug = False # If this is enabled the script will output the values being read to the console
 mode = "full-detail" # Check "Modes" for details
-mqtt_on = True
+mqtt_on = False
 csv_on = True
-cam_on = True
+cam_on = False
 cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 
 ## Modes
@@ -71,8 +71,8 @@ cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 
 ##### End of Settings #####
 buffer = True if (pLogFile != pMQTT) else False
-valsDetail = [] * 8
-valsNormal = [] * 2
+valsDetail = [0] * 8
+valsNormal = [0] * 2
 currentPeople = 0
 dhMeanList = [0.0 , 0.0]
 dhMeanListWrites = 0
@@ -623,31 +623,27 @@ if __name__ == '__main__':
         thread1.start()
         thread2.start()
         thread3.start()
-        
-        try:        
-                thread1.join()
-                thread2.join()
-                thread3.join()
-        except KeyboardInterrupt:
-                notKill=False
 
         if cam_on:
                 thread4 = CameraThread()
                 thread4.setName('Thread 4')
                 thread4.start()
-                try:
-                        thread4.join()
-                except KeyboardInterrupt:
-                        notKill=False
 
         if mqtt_on:
                 thread5 = GCPThread()
                 thread5.setName('Thread 5')
                 thread5.start()
-                try:
-                        thread5.join()
-                except KeyboardInterrupt:
-                        notKill=False
         
-        print('Main Terminating...')
+        #Locking mainthread while thread1 is still alive
+        #This means the program won't terminate until thread1 crashes or
+        #until we catch the KeyboardInterrupt that will signal
+        #every thread to kill itself correctly
+        try:        
+                while(thread1.is_alive):
+                        time.sleep(1)        
+        except KeyboardInterrupt:
+                print("Stopping every task")
+                notKill=False
+
+        print('Program closing')
 
