@@ -38,6 +38,7 @@ yolov3_weights = os.path.split(sys.argv[0])[0] + "/yolov3.weights"
 #CSV file writing
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
 filePathDetail = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-detail.csv" # Full file path, properly escaped
+filePathCamLog = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-cam.csv"
 
 #Functionality setup
 debug = False # If this is enabled the script will output the values being read to the console
@@ -381,6 +382,7 @@ class CameraDetection():
                 while True:
                         ts = time.time()
                         st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
+                        st2 = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d,%H%M%S')
 
                         # grab the frame from the threaded video stream and resize it
                         # to have a maximum width of 400 pixels
@@ -437,6 +439,7 @@ class CameraDetection():
                                 self.draw_prediction(frame, class_ids[i], confidences[i], round(x), round(y), round(x+w), round(y+h))
                                 
                         imageName = st + '_' + str(camPeople)  + 'p.jpg'
+                        DataProcessing().addToFile(filePathCamLog, st2+','+str(camPeople))
                         cv2.imwrite(imageName, frame)
                         cv2.destroyAllWindows() #Need?
 
