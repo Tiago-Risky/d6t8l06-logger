@@ -26,7 +26,7 @@ pCam = 6 # Interval between camera picture saving and detecting
 
 #Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
-TargetMeanJump = 0.25 # This is the value for a jump in the mean that should signal human presence
+TargetMeanJump = 0.30 # This is the value for a jump in the mean that should signal human presence
 
 #Camera detection configuration
 yolov3_classes = os.path.split(sys.argv[0])[0] + "/yolov3.txt"
@@ -74,7 +74,7 @@ buffer = True if (pLogFile != pMQTT) else False
 valsDetail = [0] * 8
 valsNormal = [0] * 2
 currentPeople = 0
-dhMeanList = [0.0 , 0.0]
+dhMeanList = [0.0 , 0.0, 0.0]
 dhMeanListWrites = 0
 bufferList = []
 valPTAT = 0
@@ -283,9 +283,15 @@ class DetectHuman():
         def updateMeanList(self, arg):
                 global dhMeanListWrites
                 dhMeanList[0] = dhMeanList[1]
-                dhMeanList[1] = arg
+                dhMeanList[1] = dhMeanList[2]
+                dhMeanList[2] = arg
                 dhMeanListWrites += 1
         
+        def normaliseMeanList(self, arg):
+                dhMeanList[0] = arg
+                dhMeanList[1] = arg
+                dhMeanList[2] = arg
+
         def updatePeople(self, arg):
                 global currentPeople
                 num = int(arg)
@@ -563,29 +569,32 @@ class DetectHumanThread(Thread):
                                 DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
                                 
                                 global currentPeople
-                                if(dhMeanListWrites>2):
-                                        if(dhMeanList[1]-dhMeanList[0])>TargetMeanJump:
+                                if(dhMeanListWrites>3):
+                                        if(dhMeanList[2]-dhMeanList[0])>TargetMeanJump:
                                                 ## Bump in mean here
                                                 currentPeople +=1
+                                                DetectHuman().normaliseMeanList(currentMean)  #Normalise prevents the same detection twice
                                                 counter = 0
                                                 for d in currentDev:
-                                                        if d > (currentMean+TargetMeanJump):
+                                                        if d > (currentMean):
                                                                 counter+=1
                                                 if counter>currentPeople:
-                                                        currentPeople=counter
+                                                        something = None #pausing this idea for now as it seems unreliable, will check later
+                                                        #currentPeople=counter
                                                         ## This means that other objects that are above the mean could potentially
                                                         ## trigger as humans. this has to be checked maybe with more certain values
                                                         ## for the human body temperature at the devices distance.
                                                         ## It could even be a setup value
 
-                                        if(dhMeanList[0]-dhMeanList[1])>TargetMeanJump:
+                                        if(dhMeanList[0]-dhMeanList[2])>TargetMeanJump:
                                                 ## Negative bump here
                                                 counter = 0
                                                 for d in currentDev:
-                                                        if d > (currentMean+TargetMeanJump):
+                                                        if d > (currentMean):
                                                                 counter+=1
                                                 if counter<=(currentPeople-1):
                                                         currentPeople-=1
+                                                        DetectHuman().normaliseMeanList(currentMean) #Normalise prevents the same detection twice
                                                 ## This means if 2 people leave in the same 1 second frame they will not be
                                                 ## detected, only 1 will be. However the fix for this implies that
                                                 ## In a room where the mean is too close to the people in the sensor
