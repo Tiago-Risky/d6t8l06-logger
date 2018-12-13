@@ -34,6 +34,7 @@ yolov3_config = os.path.split(sys.argv[0])[0] + "/yolov3.cfg"
 yolov3_weights = os.path.split(sys.argv[0])[0] + "/yolov3.weights"
 
 ## os.path.split(sys.argv[0])[0] will retrieve the directory the script is running from, accurately
+## this seems to be an issue on Linux however, where just the filename worksxx
 
 #CSV file writing
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
@@ -75,7 +76,11 @@ valsDetail = [0] * 8
 valsNormal = [0] * 2
 currentPeople = 0
 dhMeanList = [0.0 , 0.0, 0.0]
+dhLastSensorVals = [0, 0, 0] * 8
 dhMeanListWrites = 0
+dhLastSensorValsWrites = 0
+dhPresence = [0,0,0,0,0,0,0,0]
+dhControl = [0,0,0,0,0,0,0,0]
 bufferList = []
 valPTAT = 0
 connected = False
@@ -286,7 +291,26 @@ class DetectHuman():
                 dhMeanList[1] = dhMeanList[2]
                 dhMeanList[2] = arg
                 dhMeanListWrites += 1
-        
+
+        def updateCelVals(self, argCel, argVal):
+                global dhLastSensorValsWrites
+                dhLastSensorVals[argCel][0] = dhLastSensorVals[argCel][1]
+                dhLastSensorVals[argCel][1] = dhLastSensorVals[argCel][2]
+                dhLastSensorVals[argCel][2] = argVal
+                dhLastSensorValsWrites += 1
+
+        def checkEntranceCell(self, argCel):
+                global dhLastSensorValsWrites
+                if dhLastSensorValsWrites>3:
+                        dev = self.calcDev(dhLastSensorVals[argCel])
+                        isPerson = False
+                        for d in dev:
+                                if d > TargetDev:
+                                        isPerson = True
+                        if isPerson:
+                                dhControl[argCel] = max(dhLastSensorVals)
+                                dhPresence[argCel] = 1
+
         def normaliseMeanList(self, arg):
                 dhMeanList[0] = arg
                 dhMeanList[1] = arg
@@ -566,6 +590,12 @@ class DetectHumanThread(Thread):
                                 
                                 currentDev = DetectHuman().calcDev(valsDetail)
                                 
+                                ## WIP for new per-cell detection
+                                for i in range(8):
+                                        DetectHuman().updateCelVals(i, valsDetail[i])
+                                        DetectHuman().checkEntranceCell(i)
+                                ##
+
                                 DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
                                 
                                 global currentPeople
@@ -647,7 +677,7 @@ if __name__ == '__main__':
         #This means the program won't terminate until thread1 crashes or
         #until we catch the KeyboardInterrupt that will signal
         #every thread to kill itself correctly
-        try:        
+        try:
                 while(thread1.is_alive):
                         time.sleep(1)        
         except KeyboardInterrupt:
@@ -655,4 +685,3 @@ if __name__ == '__main__':
                 notKill=False
 
         print('Program closing')
-
