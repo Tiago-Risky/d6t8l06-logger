@@ -311,6 +311,19 @@ class DetectHuman():
                                 dhControl[argCel] = max(dhLastSensorVals)
                                 dhPresence[argCel] = 1
 
+        def checkExitCell(self, argCel):
+                global dhLastSensorValsWrites
+                if dhLastSensorValsWrites>3:
+                        if dhLastSensorVals[argCel] == 1:        
+                                dev = self.calcDev(dhLastSensorVals[argCel],False)
+                                isPerson = True
+                                for d in dev:
+                                        if d < (TargetDev*-1):
+                                                isPerson = False
+                                if isPerson == False:
+                                        dhControl[argCel] = min(dhLastSensorVals)
+                                        dhPresence[argCel] = 0
+
         def normaliseMeanList(self, arg):
                 dhMeanList[0] = arg
                 dhMeanList[1] = arg
@@ -328,14 +341,17 @@ class DetectHuman():
 
                 return (sum(data)/float(len(data)))
         
-        def calcDev(self, arg): #Takes a list, calculates the deviation for each value, returns a list with the deviation values
+        def calcDev(self, arg, absolute=True): #Takes a list, calculates the deviation for each value, returns a list with the deviation values
                 valMean = self.calcMean(arg)
                 data = []
                 for i in arg:
                         data.append(int(i))
                 devList = []
                 for i in data:
-                        dev = abs(valMean - i)
+                        if absolute:
+                                dev = abs(valMean - i)
+                        else:
+                                dev = valMean - i
                         devList.append(dev)
                 return devList
 
@@ -546,6 +562,7 @@ class DataThread(Thread):
                 global currentPeople
                 valsNormal[0] = DetectHuman().calcMean(valsDetail)
                 valsNormal[1] = currentPeople
+                valsNormal.extend(dhPresence)
                 
                 #Writing the new data to the Buffer
                 global buffer
