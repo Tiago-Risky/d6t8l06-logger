@@ -310,6 +310,7 @@ class DetectHuman():
                         if isPerson:
                                 dhControl[argCel] = max(dhLastSensorVals)
                                 dhPresence[argCel] = 1
+                                self.normaliseCellVals(argCel)
 
         def checkExitCell(self, argCel):
                 global dhLastSensorValsWrites
@@ -323,6 +324,12 @@ class DetectHuman():
                                 if isPerson == False:
                                         dhControl[argCel] = min(dhLastSensorVals)
                                         dhPresence[argCel] = 0
+                                        self.normaliseCellVals(argCel)
+
+        def normaliseCellVals(self, argCel):
+                val = dhLastSensorVals[argCel][2]
+                dhLastSensorVals[argCel][0] = val
+                dhLastSensorVals[argCel][1] = val
 
         def normaliseMeanList(self, arg):
                 dhMeanList[0] = arg
