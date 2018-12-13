@@ -588,8 +588,6 @@ class DetectHumanThread(Thread):
                                 currentMean = DetectHuman().calcMean(valsDetail)
                                 print("Current mean is {}".format(currentMean))
                                 
-                                currentDev = DetectHuman().calcDev(valsDetail)
-                                
                                 ## WIP for new per-cell detection
                                 for i in range(8):
                                         DetectHuman().updateCelVals(i, valsDetail[i])
@@ -604,32 +602,11 @@ class DetectHumanThread(Thread):
                                                 ## Bump in mean here
                                                 currentPeople +=1
                                                 DetectHuman().normaliseMeanList(currentMean)  #Normalise prevents the same detection twice
-                                                counter = 0
-                                                for d in currentDev:
-                                                        if d > (currentMean):
-                                                                counter+=1
-                                                if counter>currentPeople:
-                                                        something = None #pausing this idea for now as it seems unreliable, will check later
-                                                        #currentPeople=counter
-                                                        ## This means that other objects that are above the mean could potentially
-                                                        ## trigger as humans. this has to be checked maybe with more certain values
-                                                        ## for the human body temperature at the devices distance.
-                                                        ## It could even be a setup value
 
                                         if(dhMeanList[0]-dhMeanList[2])>TargetMeanJump:
                                                 ## Negative bump here
-                                                counter = 0
-                                                for d in currentDev:
-                                                        if d > (currentMean):
-                                                                counter+=1
-                                                if counter<=(currentPeople-1):
-                                                        currentPeople-=1
-                                                        DetectHuman().normaliseMeanList(currentMean) #Normalise prevents the same detection twice
-                                                ## This means if 2 people leave in the same 1 second frame they will not be
-                                                ## detected, only 1 will be. However the fix for this implies that
-                                                ## In a room where the mean is too close to the people in the sensor
-                                                ## Aka = imagine all sensors covered with people
-                                                ## Then it would always detect 0 people when the mean would drop
+                                                currentPeople-=1
+                                                DetectHuman().normaliseMeanList(currentMean) #Normalise prevents the same detection twice
  
                                 time.sleep(pLogFile)
 
