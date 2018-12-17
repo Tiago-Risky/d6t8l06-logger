@@ -315,7 +315,7 @@ class DetectHuman():
         def checkExitCell(self, argCel):
                 global dhLastSensorValsWrites
                 if dhLastSensorValsWrites>3:
-                        if dhLastSensorVals[argCel] == 1:        
+                        if dhPresence[argCel] == 1:        
                                 dev = self.calcDev(dhLastSensorVals[argCel],False)
                                 isPerson = True
                                 for d in dev:
@@ -616,6 +616,7 @@ class DetectHumanThread(Thread):
                                 for i in range(8):
                                         DetectHuman().updateCelVals(i, valsDetail[i])
                                         DetectHuman().checkEntranceCell(i)
+                                        DetectHuman().checkExitCell(i)
                                 ##
 
                                 DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
