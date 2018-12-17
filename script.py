@@ -26,7 +26,7 @@ pCam = 6 # Interval between camera picture saving and detecting
 
 #Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
-TargetMeanJump = 0.30 # This is the value for a jump in the mean that should signal human presence
+TargetTolerance = 0.30 # This is the tolerance for when the current value drops below the registered value
 
 #Camera detection configuration
 yolov3_classes = os.path.split(sys.argv[0])[0] + "/yolov3.txt"
@@ -292,7 +292,7 @@ class DetectHuman():
 
         def checkEntranceCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>3:
+                if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]):
                         dev = self.calcHDifToLastVal(dhLastSensorVals[argCel])
                         isPerson = False
                         if dev > TargetDev:
@@ -304,7 +304,7 @@ class DetectHuman():
 
         def checkExitCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>3 and dhPresence[argCel] == 1:
+                if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]) and dhPresence[argCel] == 1:
                         dev = self.calcHDifToLastVal(dhLastSensorVals[argCel], True)
                         isPerson = True
                         if dev < (TargetDev*-1):
@@ -315,8 +315,8 @@ class DetectHuman():
 
         def checkPresence(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>3 and dhPresence[argCel] == 1 and \
-                dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1] < dhPresenceTemp[argCel]:
+                if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]) and dhPresence[argCel] == 1 and \
+                dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1] < dhPresenceTemp[argCel] - TargetTolerance:
                                 dhPresence[argCel] = 0
 
         def normaliseCellVals(self, argCel):
@@ -586,10 +586,6 @@ class DetectHumanThread(Thread):
                         global connected
                         if connected:
                                 global TargetDev
-                                global TargetMeanJump
-
-                                currentMean = DetectHuman().calcMean(valsDetail)
-                                #print("Current mean is {}".format(currentMean))
                                 
                                 ## New per-cell detection
                                 for i in range(8):
