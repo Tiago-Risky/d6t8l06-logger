@@ -75,12 +75,13 @@ buffer = True if (pLogFile != pMQTT) else False
 valsDetail = [0] * 8
 valsNormal = [0] * 2
 currentPeople = 0
-dhMeanList = [0.0 , 0.0, 0.0]
-dhLastSensorVals = [0, 0, 0] * 8
+dhMeanList = [0.0, 0.0, 0.0]
+dhLastSensorVals = [[0,0,0]]
+for i in range(7):
+        dhLastSensorVals.append([0,0,0])
 dhMeanListWrites = 0
 dhLastSensorValsWrites = 0
 dhPresence = [0,0,0,0,0,0,0,0]
-dhControl = [0,0,0,0,0,0,0,0]
 bufferList = []
 valPTAT = 0
 connected = False
@@ -287,44 +288,37 @@ class GCloudIOT():
 class DetectHuman():
         def updateMeanList(self, arg):
                 global dhMeanListWrites
-                dhMeanList[0] = dhMeanList[1]
-                dhMeanList[1] = dhMeanList[2]
-                dhMeanList[2] = arg
+                dhMeanList.pop(0)
+                dhMeanList.append(arg)
                 dhMeanListWrites += 1
 
         def updateCelVals(self, argCel, argVal):
                 global dhLastSensorValsWrites
-                dhLastSensorVals[argCel][0] = dhLastSensorVals[argCel][1]
-                dhLastSensorVals[argCel][1] = dhLastSensorVals[argCel][2]
-                dhLastSensorVals[argCel][2] = argVal
+                dhLastSensorVals[argCel].pop(0)
+                dhLastSensorVals[argCel].append(argVal)
                 dhLastSensorValsWrites += 1
 
         def checkEntranceCell(self, argCel):
                 global dhLastSensorValsWrites
                 if dhLastSensorValsWrites>3:
-                        dev = self.calcDev(dhLastSensorVals[argCel])
+                        dev = self.calcHDifToLastVal(dhLastSensorVals[argCel])
                         isPerson = False
-                        for d in dev:
-                                if d > TargetDev:
-                                        isPerson = True
+                        if dev > TargetDev:
+                                isPerson = True
                         if isPerson:
-                                dhControl[argCel] = max(dhLastSensorVals)
                                 dhPresence[argCel] = 1
                                 self.normaliseCellVals(argCel)
 
         def checkExitCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>3:
-                        if dhPresence[argCel] == 1:        
-                                dev = self.calcDev(dhLastSensorVals[argCel],False)
-                                isPerson = True
-                                for d in dev:
-                                        if d < (TargetDev*-1):
-                                                isPerson = False
-                                if isPerson == False:
-                                        dhControl[argCel] = min(dhLastSensorVals)
-                                        dhPresence[argCel] = 0
-                                        self.normaliseCellVals(argCel)
+                if dhLastSensorValsWrites>3 and dhPresence[argCel] == 1:
+                        dev = self.calcHDifToLastVal(dhLastSensorVals[argCel], True)
+                        isPerson = True
+                        if dev < (TargetDev*-1):
+                                isPerson = False
+                        if isPerson == False:
+                                dhPresence[argCel] = 0
+                                self.normaliseCellVals(argCel)
 
         def normaliseCellVals(self, argCel):
                 val = dhLastSensorVals[argCel][2]
@@ -336,10 +330,16 @@ class DetectHuman():
                 dhMeanList[1] = arg
                 dhMeanList[2] = arg
 
-        def updatePeople(self, arg):
-                global currentPeople
-                num = int(arg)
-                currentPeople += num
+        def calcHDifToLastVal(self, arg, negative=False):
+                dif = [0] * (len(arg) - 1)
+                for d in range(len(arg)-1):
+                        dif[d] = int(arg[len(arg)-1])-int(arg[d])
+                result = 0
+                if negative:
+                        result = min(dif)
+                else:
+                        result = max(dif)
+                return result
         
         def calcMean(self, arg): #Takes a list, calculates the mean of the entire list, returns float
                 data = []
@@ -567,6 +567,7 @@ class DataThread(Thread):
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
                 
                 global currentPeople
+                valsNormal = [0] * 2
                 valsNormal[0] = DetectHuman().calcMean(valsDetail)
                 valsNormal[1] = currentPeople
                 valsNormal.extend(dhPresence)
@@ -610,7 +611,7 @@ class DetectHumanThread(Thread):
                                 global TargetMeanJump
 
                                 currentMean = DetectHuman().calcMean(valsDetail)
-                                print("Current mean is {}".format(currentMean))
+                                #print("Current mean is {}".format(currentMean))
                                 
                                 ## WIP for new per-cell detection
                                 for i in range(8):
@@ -618,6 +619,8 @@ class DetectHumanThread(Thread):
                                         DetectHuman().checkEntranceCell(i)
                                         DetectHuman().checkExitCell(i)
                                 ##
+                                print(dhLastSensorVals)
+                                print(dhPresence)
 
                                 DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
                                 
@@ -625,12 +628,13 @@ class DetectHumanThread(Thread):
                                 if(dhMeanListWrites>3):
                                         if(dhMeanList[2]-dhMeanList[0])>TargetMeanJump:
                                                 ## Bump in mean here
-                                                currentPeople +=1
+                                                currentPeople+=1
                                                 DetectHuman().normaliseMeanList(currentMean)  #Normalise prevents the same detection twice
 
                                         if(dhMeanList[0]-dhMeanList[2])>TargetMeanJump:
                                                 ## Negative bump here
-                                                currentPeople-=1
+                                                if currentPeople>0:
+                                                        currentPeople-=1
                                                 DetectHuman().normaliseMeanList(currentMean) #Normalise prevents the same detection twice
  
                                 time.sleep(pLogFile)
