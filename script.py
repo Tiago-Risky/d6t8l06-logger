@@ -74,14 +74,12 @@ cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 buffer = True if (pLogFile != pMQTT) else False
 valsDetail = [0] * 8
 valsNormal = [0] * 2
-currentPeople = 0
-dhMeanList = [0.0, 0.0, 0.0]
 dhLastSensorVals = [[0,0,0]]
 for i in range(7):
         dhLastSensorVals.append([0,0,0])
-dhMeanListWrites = 0
 dhLastSensorValsWrites = 0
 dhPresence = [0,0,0,0,0,0,0,0]
+dhPresenceTemp = [0,0,0,0,0,0,0,0]
 bufferList = []
 valPTAT = 0
 connected = False
@@ -286,12 +284,6 @@ class GCloudIOT():
         # [END iot_mqtt_run]
 
 class DetectHuman():
-        def updateMeanList(self, arg):
-                global dhMeanListWrites
-                dhMeanList.pop(0)
-                dhMeanList.append(arg)
-                dhMeanListWrites += 1
-
         def updateCelVals(self, argCel, argVal):
                 global dhLastSensorValsWrites
                 dhLastSensorVals[argCel].pop(0)
@@ -307,6 +299,7 @@ class DetectHuman():
                                 isPerson = True
                         if isPerson:
                                 dhPresence[argCel] = 1
+                                dhPresenceTemp[argCel] = dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1]
                                 self.normaliseCellVals(argCel)
 
         def checkExitCell(self, argCel):
@@ -320,15 +313,16 @@ class DetectHuman():
                                 dhPresence[argCel] = 0
                                 self.normaliseCellVals(argCel)
 
+        def checkPresence(self, argCel):
+                global dhLastSensorValsWrites
+                if dhLastSensorValsWrites>3 and dhPresence[argCel] == 1 and \
+                dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1] < dhPresenceTemp[argCel]:
+                                dhPresence[argCel] = 0
+
         def normaliseCellVals(self, argCel):
                 val = dhLastSensorVals[argCel][2]
                 dhLastSensorVals[argCel][0] = val
                 dhLastSensorVals[argCel][1] = val
-
-        def normaliseMeanList(self, arg):
-                dhMeanList[0] = arg
-                dhMeanList[1] = arg
-                dhMeanList[2] = arg
 
         def calcHDifToLastVal(self, arg, negative=False):
                 dif = [0] * (len(arg) - 1)
@@ -347,20 +341,6 @@ class DetectHuman():
                         data.append(int(i))
 
                 return (sum(data)/float(len(data)))
-        
-        def calcDev(self, arg, absolute=True): #Takes a list, calculates the deviation for each value, returns a list with the deviation values
-                valMean = self.calcMean(arg)
-                data = []
-                for i in arg:
-                        data.append(int(i))
-                devList = []
-                for i in data:
-                        if absolute:
-                                dev = abs(valMean - i)
-                        else:
-                                dev = valMean - i
-                        devList.append(dev)
-                return devList
 
 class DataProcessing():
         def addToFile(self, filepath, txt):
@@ -566,10 +546,8 @@ class DataThread(Thread):
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
                 
-                global currentPeople
-                valsNormal = [0] * 2
+                valsNormal = [0]
                 valsNormal[0] = DetectHuman().calcMean(valsDetail)
-                valsNormal[1] = currentPeople
                 valsNormal.extend(dhPresence)
                 
                 #Writing the new data to the Buffer
@@ -613,30 +591,18 @@ class DetectHumanThread(Thread):
                                 currentMean = DetectHuman().calcMean(valsDetail)
                                 #print("Current mean is {}".format(currentMean))
                                 
-                                ## WIP for new per-cell detection
+                                ## New per-cell detection
                                 for i in range(8):
                                         DetectHuman().updateCelVals(i, valsDetail[i])
                                         DetectHuman().checkEntranceCell(i)
                                         DetectHuman().checkExitCell(i)
-                                ##
+                                        ## checkExitCell can be replaced with checkPresence
+                                        ## once checkPresence is fully functional and tested
+                                        ## (need to check accuracy and need to add a margin of error)
                                 print(dhLastSensorVals)
                                 print(dhPresence)
+                                ##
 
-                                DetectHuman().updateMeanList(currentMean) #updates meanList with currentValue
-                                
-                                global currentPeople
-                                if(dhMeanListWrites>3):
-                                        if(dhMeanList[2]-dhMeanList[0])>TargetMeanJump:
-                                                ## Bump in mean here
-                                                currentPeople+=1
-                                                DetectHuman().normaliseMeanList(currentMean)  #Normalise prevents the same detection twice
-
-                                        if(dhMeanList[0]-dhMeanList[2])>TargetMeanJump:
-                                                ## Negative bump here
-                                                if currentPeople>0:
-                                                        currentPeople-=1
-                                                DetectHuman().normaliseMeanList(currentMean) #Normalise prevents the same detection twice
- 
                                 time.sleep(pLogFile)
 
 class GCPThread(Thread):
