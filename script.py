@@ -80,7 +80,9 @@ for i in range(7):
 dhLastSensorValsWrites = 0
 dhPresence = [0,0,0,0,0,0,0,0]
 dhPresenceTemp = [0,0,0,0,0,0,0,0]
-camBoundaries = ((0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13),(14,15))
+camBoundariesX = ((0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13),(14,15))
+camBoundariesY = (0,1)
+dhCamPresence = [0,0,0,0,0,0,0,0]
 bufferList = []
 valPTAT = 0
 connected = False
@@ -341,9 +343,16 @@ class DetectHuman():
 
                 return (sum(data)/float(len(data)))
 
-        def checkBoundary(self, arg):
-                hmmmm_let_me_think = 1
-                return (True, 0)
+        def checkBoundary(self, argX, argY):
+                inside = False
+                box = -1
+
+                for x in range(len(camBoundariesX)):
+                        if camBoundariesX[x][0]<=argX<=camBoundariesX[x][1] and camBoundariesY[0]<=argY<=camBoundariesY[1]:
+                                inside = True
+                                box = x
+                
+                return (inside, box)
 
 class DataProcessing():
         def addToFile(self, filepath, txt):
@@ -445,18 +454,20 @@ class CameraDetection():
                         conf_threshold = 0.5
                         nms_threshold = 0.4
                         camPeople = 0
-
+                        dhCamPresence = [0,0,0,0,0,0,0,0]
 
                         for out in outs:
                                 for detection in out:
                                         scores = detection[5:]
                                         class_id = np.argmax(scores)
                                         confidence = scores[class_id]
-                                        if confidence > 0.5:
-                                                if self.classes[class_id] == "person": #need to further develop from here
-                                                        camPeople += 1 # to be deprecated
-                                                center_x = int(detection[0] * Width)
-                                                center_y = int(detection[1] * Height)
+                                        if confidence > 0.5 and self.classes[class_id] == "person": #need to further develop from here
+                                                center_x = int(detection[0] * Width)# we can use these centers to know where the person is
+                                                center_y = int(detection[1] * Height)# then we can send it to the checkboundaries
+                                                isInside, place = DetectHuman().checkBoundary(center_x,center_y)
+                                                if isInside:
+                                                        dhCamPresence[place] = 1
+                                                        camPeople += 1
                                                 w = int(detection[2] * Width)
                                                 h = int(detection[3] * Height)
                                                 x = center_x - w / 2
