@@ -26,7 +26,7 @@ pCam = 6 # Interval between camera picture saving and detecting
 
 #Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
-TargetTolerance = 0.30 # This is the tolerance for when the current value drops below the registered value
+TargetTolerance = 1 # This is the tolerance for when the current value drops below the registered value
 
 #Camera detection configuration
 yolov3_classes = os.path.split(sys.argv[0])[0] + "/yolov3.txt"
@@ -80,6 +80,7 @@ for i in range(7):
 dhLastSensorValsWrites = 0
 dhPresence = [0,0,0,0,0,0,0,0]
 dhPresenceTemp = [0,0,0,0,0,0,0,0]
+camBoundaries = ((0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13),(14,15))
 bufferList = []
 valPTAT = 0
 connected = False
@@ -107,8 +108,6 @@ class GCloudIOT():
         arg_mqtt_bridge_hostname = 'mqtt.googleapis.com' #MQTT bridge hostname
         arg_mqtt_bridge_port = 8883 #MQTT bridge port, 8883 or 443 recommended
         arg_jwt_expires_minutes = 20 #Expiration time, in minutes, for JWT tokens
-
-
 
         # [START iot_mqtt_jwt]
         def create_jwt(self, project_id, private_key_file, algorithm):
@@ -316,7 +315,7 @@ class DetectHuman():
         def checkPresence(self, argCel):
                 global dhLastSensorValsWrites
                 if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]) and dhPresence[argCel] == 1 and \
-                dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1] < dhPresenceTemp[argCel] - TargetTolerance:
+                int(dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1]) < int(dhPresenceTemp[argCel]) - TargetTolerance:
                                 dhPresence[argCel] = 0
 
         def normaliseCellVals(self, argCel):
@@ -341,6 +340,10 @@ class DetectHuman():
                         data.append(int(i))
 
                 return (sum(data)/float(len(data)))
+
+        def checkBoundary(self, arg):
+                hmmmm_let_me_think = 1
+                return (True, 0)
 
 class DataProcessing():
         def addToFile(self, filepath, txt):
@@ -448,10 +451,10 @@ class CameraDetection():
                                 for detection in out:
                                         scores = detection[5:]
                                         class_id = np.argmax(scores)
-                                        if self.classes[class_id] == "person":
-                                                camPeople += 1
                                         confidence = scores[class_id]
                                         if confidence > 0.5:
+                                                if self.classes[class_id] == "person": #need to further develop from here
+                                                        camPeople += 1 # to be deprecated
                                                 center_x = int(detection[0] * Width)
                                                 center_y = int(detection[1] * Height)
                                                 w = int(detection[2] * Width)
@@ -591,7 +594,8 @@ class DetectHumanThread(Thread):
                                 for i in range(8):
                                         DetectHuman().updateCelVals(i, valsDetail[i])
                                         DetectHuman().checkEntranceCell(i)
-                                        DetectHuman().checkExitCell(i)
+                                        #DetectHuman().checkExitCell(i)
+                                        DetectHuman().checkPresence(i)
                                         ## checkExitCell can be replaced with checkPresence
                                         ## once checkPresence is fully functional and tested
                                         ## (need to check accuracy and need to add a margin of error)
