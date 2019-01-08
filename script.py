@@ -73,7 +73,6 @@ cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
 ##### End of Settings #####
 buffer = True if (pLogFile != pMQTT) else False
 valsDetail = [0] * 8
-valsNormal = [0] * 2
 dhLastSensorVals = [[0,0,0]]
 for i in range(7):
         dhLastSensorVals.append([0,0,0])
@@ -560,9 +559,12 @@ class DataThread(Thread):
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
                 
-                valsNormal = [0]
-                valsNormal[0] = DetectHuman().calcMean(valsDetail)
-                valsNormal.extend(dhPresence)
+                allPresence = [0,0,0,0,0,0,0,0]
+                for x in range(8):
+                        if dhPresence[x] == 1:
+                                allPresence[x] += 1
+                        if dhCamPresence[x] == 1:
+                                allPresence[x] += 2               
                 
                 #Writing the new data to the Buffer
                 global buffer
@@ -575,14 +577,14 @@ class DataThread(Thread):
                 printVals = []
                 printVals.extend(valsDetail)
                 printVals.append(valPTAT)
-                stringPrint = DataProcessing().buildCsvString(st, printVals)
-                stringPrintEco = DataProcessing().buildCsvString(st, valsNormal)
+                stringPrintDetail = DataProcessing().buildCsvString(st, printVals)
+                stringPrintNormal = DataProcessing().buildCsvString(st, allPresence)
 
                 #Writing the new line in the file
                 if csv_on:
                         if mode != "full-normal":
-                                DataProcessing().addToFile(filePathDetail, stringPrint)
-                        DataProcessing().addToFile(filePath, stringPrintEco)
+                                DataProcessing().addToFile(filePathDetail, stringPrintDetail)
+                        DataProcessing().addToFile(filePath, stringPrintNormal)
 
                 ## Add this all to the same file?
                 ## Need a way to process this into the table as a annotation
