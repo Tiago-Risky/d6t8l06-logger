@@ -334,13 +334,6 @@ class DetectHuman():
                 else:
                         result = max(dif)
                 return result
-        
-        def calcMean(self, arg): #Takes a list, calculates the mean of the entire list, returns float
-                data = []
-                for i in arg:
-                        data.append(int(i))
-
-                return (sum(data)/float(len(data)))
 
         def checkBoundary(self, argX, argY):
                 inside = False
