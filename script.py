@@ -34,7 +34,7 @@ yolov3_config = os.path.split(sys.argv[0])[0] + "/yolov3.cfg"
 yolov3_weights = os.path.split(sys.argv[0])[0] + "/yolov3.weights"
 
 ## os.path.split(sys.argv[0])[0] will retrieve the directory the script is running from, accurately
-## this seems to be an issue on Linux however, where just the filename worksxx
+## this seems to be an issue on Linux however, where just the filename works
 
 #CSV file writing
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
@@ -288,7 +288,8 @@ class DetectHuman():
                 global dhLastSensorValsWrites
                 dhLastSensorVals[argCel].pop(0)
                 dhLastSensorVals[argCel].append(argVal)
-                dhLastSensorValsWrites += 1
+                if dhLastSensorValsWrites <=4:
+                        dhLastSensorValsWrites += 1
 
         def checkEntranceCell(self, argCel):
                 global dhLastSensorValsWrites
@@ -429,7 +430,6 @@ class CameraDetection():
                 while notKill:
                         ts = time.time()
                         st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
-                        st2 = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d,%H%M%S')
 
                         # grab the frame from the threaded video stream and resize it
                         # to have a maximum width of 400 pixels
@@ -475,7 +475,6 @@ class CameraDetection():
                                                 confidences.append(float(confidence))
                                                 boxes.append([x, y, w, h])
 
-
                         indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
 
                         for i in indices:
@@ -488,7 +487,6 @@ class CameraDetection():
                                 self.draw_prediction(frame, class_ids[i], confidences[i], round(x), round(y), round(x+w), round(y+h))
                                 
                         imageName = st + '_' + str(camPeople)  + 'p.jpg'
-                        DataProcessing().addToFile(filePathCamLog, st2+','+str(camPeople))
                         cv2.imwrite(imageName, frame)
                         cv2.destroyAllWindows() #Need?
 
