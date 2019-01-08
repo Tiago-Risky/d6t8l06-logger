@@ -572,7 +572,7 @@ class DataThread(Thread):
                         if mode == "full-detail":
                                 DataProcessing().addToBuffer(st, valsDetail)
                         else:
-                                DataProcessing().addToBuffer(st, valsNormal)
+                                DataProcessing().addToBuffer(st, allPresence)
 
                 printVals = []
                 printVals.extend(valsDetail)
