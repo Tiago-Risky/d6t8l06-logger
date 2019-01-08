@@ -39,7 +39,6 @@ yolov3_weights = os.path.split(sys.argv[0])[0] + "/yolov3.weights"
 #CSV file writing
 filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
 filePathDetail = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-detail.csv" # Full file path, properly escaped
-filePathCamLog = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-cam.csv"
 
 #Functionality setup
 debug = False # If this is enabled the script will output the values being read to the console
