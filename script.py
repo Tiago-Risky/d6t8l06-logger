@@ -287,12 +287,12 @@ class DetectHuman():
                 global dhLastSensorValsWrites
                 dhLastSensorVals[argCel].pop(0)
                 dhLastSensorVals[argCel].append(argVal)
-                if dhLastSensorValsWrites <=15:
+                if dhLastSensorValsWrites <=25:
                         dhLastSensorValsWrites += 1
 
         def checkEntranceCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>14: #we're discarding more values as there seems to be some delay starting the sensor
+                if dhLastSensorValsWrites>20: #we're discarding more values as there seems to be some delay starting the sensor
                         dev = self.calcHDifToLastVal(dhLastSensorVals[argCel])
                         isPerson = False
                         if dev > TargetDev:
@@ -304,7 +304,7 @@ class DetectHuman():
 
         def checkExitCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>14 and dhPresence[argCel] == 1:
+                if dhLastSensorValsWrites>20 and dhPresence[argCel] == 1:
                         dev = self.calcHDifToLastVal(dhLastSensorVals[argCel], True)
                         isPerson = True
                         if dev < (TargetDev*-1):
@@ -315,7 +315,7 @@ class DetectHuman():
 
         def checkPresence(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>14 and dhPresence[argCel] == 1 and \
+                if dhLastSensorValsWrites>20 and dhPresence[argCel] == 1 and \
                 int(dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1]) < int(dhPresenceTemp[argCel]) - TargetTolerance:
                                 dhPresence[argCel] = 0
 
@@ -596,9 +596,9 @@ class DetectHumanThread(Thread):
                                 ## New per-cell detection
                                 for i in range(8):
                                         DetectHuman().updateCelVals(i, valsDetail[i])
-                                        DetectHuman().checkEntranceCell(i)
+                                        #DetectHuman().checkEntranceCell(i)
                                         #DetectHuman().checkExitCell(i)
-                                        DetectHuman().checkPresence(i)
+                                        #DetectHuman().checkPresence(i)
                                         ## checkExitCell can be replaced with checkPresence
                                         ## once checkPresence is fully functional and tested
                                         ## (need to check accuracy and need to add a margin of error)
