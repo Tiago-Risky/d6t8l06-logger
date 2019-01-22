@@ -606,7 +606,8 @@ class DetectHumanThread(Thread):
                                 print(dhPresence)
                                 ##
 
-                                time.sleep(pLogFile)
+                        time.sleep(pLogFile)
+                        
 
 class GCPThread(Thread):
         def __init__(self):
