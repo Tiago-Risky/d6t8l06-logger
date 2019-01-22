@@ -16,7 +16,7 @@ import imutils
 ##### Settings for the user to change #####
 
 #Device setup
-serialPort = '/dev/ttyUSB0/'
+serialPort = '/dev/ttyUSB0'
 
 ##Writing intervals
 # This is the waiting time between writing calls, in seconds
