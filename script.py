@@ -315,7 +315,7 @@ class DetectHuman():
 
         def checkPresence(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]) and dhPresence[argCel] == 1 and \
+                if dhLastSensorValsWrites>7 and dhPresence[argCel] == 1 and \
                 int(dhLastSensorVals[argCel][len(dhLastSensorVals[argCel])-1]) < int(dhPresenceTemp[argCel]) - TargetTolerance:
                                 dhPresence[argCel] = 0
 
