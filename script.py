@@ -16,7 +16,7 @@ import imutils
 ##### Settings for the user to change #####
 
 #Device setup
-serialPort = 'COM3'
+serialPort = '/dev/ttyUSB0/'
 
 ##Writing intervals
 # This is the waiting time between writing calls, in seconds
@@ -29,16 +29,16 @@ TargetDev = 1.8 # This is the deviation that should trigger a human presence ale
 TargetTolerance = 1 # This is the tolerance for when the current value drops below the registered value
 
 #Camera detection configuration
-yolov3_classes = os.path.split(sys.argv[0])[0] + "/yolov3.txt"
-yolov3_config = os.path.split(sys.argv[0])[0] + "/yolov3.cfg"
-yolov3_weights = os.path.split(sys.argv[0])[0] + "/yolov3.weights"
+yolov3_classes = "yolov3.txt"
+yolov3_config = "yolov3.cfg"
+yolov3_weights = "yolov3.weights"
 
 ## os.path.split(sys.argv[0])[0] will retrieve the directory the script is running from, accurately
 ## this seems to be an issue on Linux however, where just the filename works
 
 #CSV file writing
-filePath = "C:\\Users\\Tiago Cabral\\Desktop\\logfile.csv" # Full file path, properly escaped
-filePathDetail = "C:\\Users\\Tiago Cabral\\Desktop\\logfile-detail.csv" # Full file path, properly escaped
+filePath = "/var/www/html/logfile.csv" # Full file path, properly escaped
+filePathDetail = "/var/www/html/logfile-detail.csv" # Full file path, properly escaped
 
 #Functionality setup
 debug = False # If this is enabled the script will output the values being read to the console
@@ -287,12 +287,12 @@ class DetectHuman():
                 global dhLastSensorValsWrites
                 dhLastSensorVals[argCel].pop(0)
                 dhLastSensorVals[argCel].append(argVal)
-                if dhLastSensorValsWrites <=4:
+                if dhLastSensorValsWrites <=8:
                         dhLastSensorValsWrites += 1
 
         def checkEntranceCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]):
+                if dhLastSensorValsWrites>7: #we're discarding more values as there seems to be some delay starting the sensor
                         dev = self.calcHDifToLastVal(dhLastSensorVals[argCel])
                         isPerson = False
                         if dev > TargetDev:
@@ -304,7 +304,7 @@ class DetectHuman():
 
         def checkExitCell(self, argCel):
                 global dhLastSensorValsWrites
-                if dhLastSensorValsWrites>len(dhLastSensorVals[argCel]) and dhPresence[argCel] == 1:
+                if dhLastSensorValsWrites>7 and dhPresence[argCel] == 1:
                         dev = self.calcHDifToLastVal(dhLastSensorVals[argCel], True)
                         isPerson = True
                         if dev < (TargetDev*-1):
