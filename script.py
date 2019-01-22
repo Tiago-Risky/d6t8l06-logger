@@ -596,9 +596,9 @@ class DetectHumanThread(Thread):
                                 ## New per-cell detection
                                 for i in range(8):
                                         DetectHuman().updateCelVals(i, valsDetail[i])
-                                        #DetectHuman().checkEntranceCell(i)
+                                        DetectHuman().checkEntranceCell(i)
                                         #DetectHuman().checkExitCell(i)
-                                        #DetectHuman().checkPresence(i)
+                                        DetectHuman().checkPresence(i)
                                         ## checkExitCell can be replaced with checkPresence
                                         ## once checkPresence is fully functional and tested
                                         ## (need to check accuracy and need to add a margin of error)
