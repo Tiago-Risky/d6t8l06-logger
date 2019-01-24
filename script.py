@@ -67,8 +67,8 @@ for i in range(7):
 dhLastSensorValsWrites = 0
 dhPresence = [0,0,0,0,0,0,0,0]
 dhPresenceTemp = [0,0,0,0,0,0,0,0]
-camBoundariesX = ((0,1),(2,3),(4,5),(6,7),(8,9),(10,11),(12,13),(14,15))
-camBoundariesY = (0,1)
+camBoundariesX = ((0,50),(50,100),(100,150),(150,200),(200,250),(250,300),(300,350),(350,400))
+camBoundariesY = (0,300)
 dhCamPresence = [0,0,0,0,0,0,0,0]
 valPTAT = 0
 connected = False
@@ -198,7 +198,7 @@ class CameraDetection():
                         Height, Width = frame.shape[:2]
                         #blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
                         #        0.007843, (300, 300), 127.5)
-                        blob = cv2.dnn.blobFromImage(frame, 0.00392, (Width,Height), (0,0,0), True, crop=False)
+                        blob = cv2.dnn.blobFromImage(frame, 0.00392, (416,416), (0,0,0), True, crop=False)
                 
                         # pass the blob through the network and obtain the detections and
                         # predictions
@@ -246,6 +246,7 @@ class CameraDetection():
                                 self.draw_prediction(frame, class_ids[i], confidences[i], round(x), round(y), round(x+w), round(y+h))
                                 
                         imageName = st + '_' + str(camPeople)  + 'p.jpg'
+                        print(imageName)
                         cv2.imwrite(imageName, frame)
                         #cv2.destroyAllWindows() #Need?
 
