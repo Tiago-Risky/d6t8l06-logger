@@ -196,8 +196,9 @@ class CameraDetection():
                 
                         # grab the frame dimensions and convert it to a blob
                         Height, Width = frame.shape[:2]
-                        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
-                                0.007843, (300, 300), 127.5)
+                        #blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
+                        #        0.007843, (300, 300), 127.5)
+                        blob = cv2.dnn.blobFromImage(frame, 0.007843, (Width,Height), (0,0,0), True, crop=False)
                 
                         # pass the blob through the network and obtain the detections and
                         # predictions
