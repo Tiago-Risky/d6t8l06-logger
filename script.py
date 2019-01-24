@@ -16,7 +16,7 @@ serialPort = '/dev/ttyUSB0'
 ##Writing intervals
 # This is the waiting time between writing calls, in seconds
 pLogFile = 1 # Interval between logfile writes
-pCam = 6 # Interval between camera picture saving and detecting
+pCam = 10 # Interval between camera picture saving and detecting
 
 #Detection parameters
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
@@ -24,8 +24,8 @@ TargetTolerance = 1 # This is the tolerance for when the current value drops bel
 
 #Camera detection configuration
 yolov3_classes = "yolov3.txt"
-yolov3_config = "yolov3.cfg"
-yolov3_weights = "yolov3.weights"
+yolov3_config = "yolov3-tiny.cfg"
+yolov3_weights = "yolov3-tiny.weights"
 
 ## os.path.split(sys.argv[0])[0] will retrieve the directory the script is running from, accurately
 ## this seems to be an issue on Linux however, where just the filename works
@@ -192,7 +192,7 @@ class CameraDetection():
                         # grab the frame from the threaded video stream and resize it
                         # to have a maximum width of 400 pixels
                         frame = vs.read()
-                        frame = imutils.resize(frame, width=400)
+                        frame = imutils.resize(frame, width=400,inter=cv2.INTER_CUBIC)
                 
                         # grab the frame dimensions and convert it to a blob
                         Height, Width = frame.shape[:2]
