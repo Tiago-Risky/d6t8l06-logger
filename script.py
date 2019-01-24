@@ -131,10 +131,11 @@ class DetectHuman():
                 inside = False
                 box = -1
 
-                for x in range(len(camBoundariesX)):
+                for x in range(8):
                         if camBoundariesX[x][0]<=argX<=camBoundariesX[x][1] and camBoundariesY[0]<=argY<=camBoundariesY[1]:
                                 inside = True
                                 box = x
+                                break
                 
                 return (inside, box)
 
@@ -212,7 +213,6 @@ class CameraDetection():
                         conf_threshold = 0.5
                         nms_threshold = 0.4
                         camPeople = 0
-                        dhCamPresence = [0,0,0,0,0,0,0,0]
 
                         for out in outs:
                                 for detection in out:
@@ -224,6 +224,7 @@ class CameraDetection():
                                                 center_y = int(detection[1] * Height)# then we can send it to the checkboundaries
                                                 print(str(center_x) + "w " + str(center_y) + "h")
                                                 isInside, place = DetectHuman().checkBoundary(center_x,center_y)
+                                                dhCamPresence = [0,0,0,0,0,0,0,0]
                                                 if isInside:
                                                         dhCamPresence[place] = 1
                                                         camPeople += 1
