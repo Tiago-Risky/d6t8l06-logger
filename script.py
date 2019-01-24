@@ -38,8 +38,8 @@ filePathDetail = "/var/www/html/logfile-detail.csv" # Full file path, properly e
 debug = False # If this is enabled the script will output the values being read to the console
 mode = "full-detail" # Check "Modes" for details
 csv_on = True
-cam_on = False
-cam_mode = "usb" # "usb" to use a USB camera, "pi" to use Pi's camera
+cam_on = True
+cam_mode = "pi" # "usb" to use a USB camera, "pi" to use Pi's camera
 
 ## Modes
 # "full-detail" mode
@@ -198,7 +198,7 @@ class CameraDetection():
                         Height, Width = frame.shape[:2]
                         #blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
                         #        0.007843, (300, 300), 127.5)
-                        blob = cv2.dnn.blobFromImage(frame, 0.007843, (Width,Height), (0,0,0), True, crop=False)
+                        blob = cv2.dnn.blobFromImage(frame, 0.00392, (Width,Height), (0,0,0), True, crop=False)
                 
                         # pass the blob through the network and obtain the detections and
                         # predictions
@@ -247,7 +247,7 @@ class CameraDetection():
                                 
                         imageName = st + '_' + str(camPeople)  + 'p.jpg'
                         cv2.imwrite(imageName, frame)
-                        cv2.destroyAllWindows() #Need?
+                        #cv2.destroyAllWindows() #Need?
 
                         time.sleep(pCam)
 
