@@ -326,8 +326,9 @@ class DataThread(Thread):
                         if dhPresence[x] == 1:
                                 allPresence[x] += 1
                         if dhCamPresence[x] == 1:
-                                allPresence[x] += 2               
+                                allPresence[x] += 2
                 
+                print(allPresence)
                 printVals = []
                 printVals.extend(valsDetail)
                 printVals.append(valPTAT)
@@ -366,9 +367,6 @@ class DetectHumanThread(Thread):
                                         ## checkExitCell can be replaced with checkPresence
                                         ## once checkPresence is fully functional and tested
                                         ## (need to check accuracy and need to add a margin of error)
-                                print(dhLastSensorVals)
-                                print(dhPresence)
-                                ##
 
                         time.sleep(pLogFile)
 
