@@ -228,6 +228,8 @@ class CameraDetection():
                                                 if isInside:
                                                         dhCamPresence[place] = 1
                                                         camPeople += 1
+                                                print(dhCamPresence)
+                                                print(place)
                                                 w = int(detection[2] * Width)
                                                 h = int(detection[3] * Height)
                                                 x = center_x - w / 2
