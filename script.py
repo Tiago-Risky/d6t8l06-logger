@@ -222,6 +222,7 @@ class CameraDetection():
                                         if confidence > 0.5 and self.classes[class_id] == "person": #need to further develop from here
                                                 center_x = int(detection[0] * Width)# we can use these centers to know where the person is
                                                 center_y = int(detection[1] * Height)# then we can send it to the checkboundaries
+                                                print(center_x + "w " + center_y + "h")
                                                 isInside, place = DetectHuman().checkBoundary(center_x,center_y)
                                                 if isInside:
                                                         dhCamPresence[place] = 1
