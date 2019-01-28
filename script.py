@@ -12,6 +12,7 @@ import imutils
 
 #Device setup
 serialPort = '/dev/ttyUSB0'
+reverseD6T = True
 
 ##Writing intervals
 # This is the waiting time between writing calls, in seconds
@@ -299,7 +300,8 @@ class SerialThread(Thread):
                 temp = ler.split(",")
                 for i in range(8):
                         valsDetail[i] = temp[i]
-                
+                if(reverseD6T):
+                        valsDetail.reverse()
                 valPTAT = temp[8]
 
                 global connected
