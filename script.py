@@ -385,20 +385,23 @@ if __name__ == '__main__':
         thread1.setName('Thread 1')
         thread1.start()
         
-        if connected:
-                thread2 = DataThread()
-                thread2.setName('Thread 2')
+        while True:
+                if connected:
+                        thread2 = DataThread()
+                        thread2.setName('Thread 2')
 
-                thread3 = DetectHumanThread()
-                thread3.setName('Thread 3')
+                        thread3 = DetectHumanThread()
+                        thread3.setName('Thread 3')
 
-                thread2.start()
-                thread3.start()
+                        thread2.start()
+                        thread3.start()
 
-                if cam_on:
-                        thread4 = CameraThread()
-                        thread4.setName('Thread 4')
-                        thread4.start()
+                        if cam_on:
+                                thread4 = CameraThread()
+                                thread4.setName('Thread 4')
+                                thread4.start()
+                        
+                        break
 
         #Locking mainthread while thread1 is still alive
         #This means the program won't terminate until thread1 crashes or
