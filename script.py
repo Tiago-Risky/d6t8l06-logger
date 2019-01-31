@@ -77,7 +77,7 @@ class DetectHuman():
                 global TargetTemp
                 if dhLastSensorValsWrites>20: #we're discarding more values as there seems to be some delay starting the sensor
                         isPerson = False
-                        if dhLastSensorVals[argCell]>TargetTemp:
+                        if dhLastSensorVals[argCell][2]>TargetTemp:
                                 isPerson = True
                         if isPerson:
                                 dhPresence[argCell] = 1
