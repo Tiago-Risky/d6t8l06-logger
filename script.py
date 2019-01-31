@@ -35,26 +35,13 @@ yolov3_weights = "yolov3-tiny.weights"
 filePath = "/var/www/html/logfile.csv" # Full file path, properly escaped
 filePathDetail = "/var/www/html/logfile-detail.csv" # Full file path, properly escaped
 
+# !!! Make sure the script has permissions to write to these folders !!!
+
 #Functionality setup
 debug = False # If this is enabled the script will output the values being read to the console
-mode = "full-detail" # Check "Modes" for details
 csv_on = True
 cam_on = True
 cam_mode = "pi" # "usb" to use a USB camera, "pi" to use Pi's camera
-
-## Modes
-# "full-detail" mode
-# This means both the Detail and Normal .csv files are outputted
-
-# "full-normal" mode
-# This mode will output both the MQTT telemetry and the .csv file in Normal level only.
-
-## Levels of information detail
-# "Normal" level means only mean temperature and nr of people is outputted.
-# "Detail" level means the temperature for each sensor cell is outputted.
-
-# !!! Make sure the script has permissions to write in the folder !!!
-
 
 ### Excel does not meet the csv standards. To correctly import in Excel either:
 ## 1. Add SEP=, in the first line (not required for other softwares, will appear as a value in other softwares)
@@ -321,7 +308,6 @@ class DataThread(Thread):
     def run(self):
         global notKill
         while notKill:
-            if valsDetail:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
 
@@ -343,8 +329,7 @@ class DataThread(Thread):
 
                 #Writing the new line in the file
                 if csv_on:
-                        if mode != "full-normal":
-                                DataProcessing().addToFile(filePathDetail, stringPrintDetail)
+                        DataProcessing().addToFile(filePathDetail, stringPrintDetail)
                         DataProcessing().addToFile(filePath, stringPrintNormal)
 
                 ## Add this all to the same file?
@@ -360,20 +345,15 @@ class DetectHumanThread(Thread):
         def run(self):
                 global notKill
                 while notKill:
-                        global connected
-                        if connected:
-                                global TargetDev
+                        global TargetDev
                                 
                                 ## New per-cell detection
-                                for i in range(8):
-                                        DetectHuman().updateCelVals(i, valsDetail[i])
-                                        DetectHuman().checkEntranceCell(i)
-                                        #DetectHuman().checkExitCell(i)
-                                        DetectHuman().checkPresence(i)
-                                        ## checkExitCell can be replaced with checkPresence
-                                        ## once checkPresence is fully functional and tested
-                                        ## (need to check accuracy and need to add a margin of error)
-
+                        for i in range(8):
+                                DetectHuman().updateCelVals(i, valsDetail[i])
+                                DetectHuman().checkEntranceCell(i)
+                                #DetectHuman().checkExitCell(i)
+                                DetectHuman().checkPresence(i)
+                                
                         time.sleep(pLogFile)
 
 class CameraThread(Thread):
@@ -388,20 +368,21 @@ if __name__ == '__main__':
         thread1 = SerialThread()
         thread1.setName('Thread 1')
         
-        thread2 = DataThread()
-        thread2.setName('Thread 2')
+        if connected:
+                thread2 = DataThread()
+                thread2.setName('Thread 2')
 
-        thread3 = DetectHumanThread()
-        thread3.setName('Thread 3')
+                thread3 = DetectHumanThread()
+                thread3.setName('Thread 3')
 
-        thread1.start()
-        thread2.start()
-        thread3.start()
+                thread1.start()
+                thread2.start()
+                thread3.start()
 
-        if cam_on:
-                thread4 = CameraThread()
-                thread4.setName('Thread 4')
-                thread4.start()
+                if cam_on:
+                        thread4 = CameraThread()
+                        thread4.setName('Thread 4')
+                        thread4.start()
 
         #Locking mainthread while thread1 is still alive
         #This means the program won't terminate until thread1 crashes or
