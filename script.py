@@ -383,6 +383,7 @@ class CameraThread(Thread):
 if __name__ == '__main__':
         thread1 = SerialThread()
         thread1.setName('Thread 1')
+        thread1.start()
         
         if connected:
                 thread2 = DataThread()
@@ -391,7 +392,6 @@ if __name__ == '__main__':
                 thread3 = DetectHumanThread()
                 thread3.setName('Thread 3')
 
-                thread1.start()
                 thread2.start()
                 thread3.start()
 
