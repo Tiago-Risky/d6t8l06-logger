@@ -23,6 +23,8 @@ pCam = 10 # Interval between camera picture saving and detecting
 TargetDev = 1.8 # This is the deviation that should trigger a human presence alert
 TargetTolerance = 1 # This is the tolerance for when the current value drops below the registered value
 
+TargetTemp = 18 # Temperature to consider a human, above this we will consider it a person
+
 #Camera detection configuration
 yolov3_classes = "yolov3.txt"
 yolov3_config = "yolov3-tiny.cfg"
@@ -69,6 +71,18 @@ class DetectHuman():
                 dhLastSensorVals[argCel].append(argVal)
                 if dhLastSensorValsWrites <=25:
                         dhLastSensorValsWrites += 1
+
+        def checkHuman(self, argCell):
+                global dhLastSensorValsWrites
+                global TargetTemp
+                if dhLastSensorValsWrites>20: #we're discarding more values as there seems to be some delay starting the sensor
+                        isPerson = False
+                        if dhLastSensorVals[argCell]>TargetTemp:
+                                isPerson = True
+                        if isPerson:
+                                dhPresence[argCell] = 1
+                        else:
+                                dhPresence[argCell] = 0
 
         def checkEntranceCell(self, argCel):
                 global dhLastSensorValsWrites
@@ -351,9 +365,10 @@ class DetectHumanThread(Thread):
                 while notKill:
                         for i in range(8):
                                 DetectHuman().updateCelVals(i, valsDetail[i])
-                                DetectHuman().checkEntranceCell(i)
+                                DetectHuman().checkHuman(i)
+                                #DetectHuman().checkEntranceCell(i)
                                 #DetectHuman().checkExitCell(i)
-                                DetectHuman().checkPresence(i)
+                                #DetectHuman().checkPresence(i)
                                 
                         time.sleep(pLogFile)
 
