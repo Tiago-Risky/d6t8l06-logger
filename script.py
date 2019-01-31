@@ -310,6 +310,7 @@ class DataThread(Thread):
         while notKill:
                 ts = time.time()
                 st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d,%H:%M:%S')
+                day = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
 
                 global dhCamPresence
                 
@@ -327,10 +328,13 @@ class DataThread(Thread):
                 stringPrintDetail = DataProcessing().buildCsvString(st, printVals)
                 stringPrintNormal = DataProcessing().buildCsvString(st, allPresence)
 
+                fpDetFinal = filePathDetail[:-4] + day + ".csv"
+                fpFinal = filePath[:-4] + day + ".csv"
+
                 #Writing the new line in the file
                 if csv_on:
-                        DataProcessing().addToFile(filePathDetail, stringPrintDetail)
-                        DataProcessing().addToFile(filePath, stringPrintNormal)
+                        DataProcessing().addToFile(fpDetFinal, stringPrintDetail)
+                        DataProcessing().addToFile(fpFinal, stringPrintNormal)
 
                 ## Add this all to the same file?
                 ## Need a way to process this into the table as a annotation
@@ -345,9 +349,6 @@ class DetectHumanThread(Thread):
         def run(self):
                 global notKill
                 while notKill:
-                        global TargetDev
-                                
-                                ## New per-cell detection
                         for i in range(8):
                                 DetectHuman().updateCelVals(i, valsDetail[i])
                                 DetectHuman().checkEntranceCell(i)
